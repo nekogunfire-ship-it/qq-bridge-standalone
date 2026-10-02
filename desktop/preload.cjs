@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('desktop', {
   // 设置（自动保存）
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
+  billingGet: () => ipcRenderer.invoke('billing:get'),
 
   // 常用跳转
   openPath: (which) => ipcRenderer.invoke('shell:openPath', which),

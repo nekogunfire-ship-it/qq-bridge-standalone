@@ -210,6 +210,11 @@ html, body {
 .generate-preview-panel { display: flex; flex-direction: column; }
 .generate-empty { min-height: 330px; display: grid; place-items: center; border: 1px dashed var(--border); border-radius: var(--radius-sm); color: var(--text-mute); background: #101827; }
 .generate-preview { width: 100%; min-height: 330px; max-height: calc(100vh - 285px); object-fit: contain; border-radius: var(--radius-sm); background: #0b1018; }
+.billing-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.billing-summary > div { padding: 10px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: #101827; }
+.billing-summary span { display: block; color: var(--text-mute); font-size: 11px; margin-bottom: 4px; }
+.billing-summary strong { font-size: 18px; color: #dce9ff; }
+.billing-tokens { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 12px; }
 
 .panel-head { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 12px; }
 .panel-head.spaced { margin-top: 18px; }

@@ -366,6 +366,28 @@
         </label>
       </section>
 
+      <section class="panel billing-panel">
+        <div class="panel-head"><h2>API 计费</h2><span id="billingUpdated" class="muted small">等待用量数据</span></div>
+        <div class="billing-summary">
+          <div><span>今日预估</span><strong id="billingTodayCost">—</strong></div>
+          <div><span>累计预估</span><strong id="billingTotalCost">—</strong></div>
+          <div><span>累计请求</span><strong id="billingRequests">0</strong></div>
+        </div>
+        <div class="billing-tokens muted small">
+          <span>输入 <b id="billingInputTokens">0</b></span>
+          <span>输出 <b id="billingOutputTokens">0</b></span>
+          <span>缓存 <b id="billingCachedTokens">0</b></span>
+          <span>总计 <b id="billingTotalTokens">0</b></span>
+        </div>
+        <div class="generate-options">
+          <label class="field field-stack"><span class="field-label">币种</span><select id="billingCurrency"><option value="CNY">人民币 CNY</option><option value="USD">美元 USD</option></select></label>
+          <label class="field field-stack"><span class="field-label">输入价 / 百万 Token</span><input id="billingInputPrice" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field field-stack"><span class="field-label">输出价 / 百万 Token</span><input id="billingOutputPrice" type="number" min="0" step="0.01" value="0" /></label>
+        </div>
+        <div class="setup-actions"><button id="btnBillingRefresh" class="btn">刷新用量</button></div>
+        <p class="muted small">费用按接口返回的真实 Token 用量和你填写的单价估算。不同模型、缓存命中及服务商优惠可能导致账单不同，请以服务商账单为准；DSH 模式暂不计入。</p>
+      </section>
+
       <section class="panel">
         <div class="panel-head"><h2>看门狗</h2></div>
         <label class="field field-check">

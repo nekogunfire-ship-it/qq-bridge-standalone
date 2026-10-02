@@ -40,6 +40,25 @@ const DEFAULT_MAX_TOOL_ROUNDS = 8;
  */
 const MAX_INLINE_IMAGE_CHARS = 20_000_000;
 
+// 工具循环会请求模型多次。服务商每次只返回本次请求的 usage，因此必须逐轮相加，
+// 否则计费界面只看到最后一轮，系统性低估成本。
+function mergeTokenUsage(a = {}, b = {}) {
+  const input = (u) => Number(u.prompt_tokens ?? u.input_tokens) || 0;
+  const output = (u) => Number(u.completion_tokens ?? u.output_tokens) || 0;
+  const cached = (u) => Number(u.prompt_tokens_details?.cached_tokens
+    ?? u.input_tokens_details?.cached_tokens
+    ?? u.cache_read_input_tokens) || 0;
+  const promptTokens = input(a) + input(b);
+  const completionTokens = output(a) + output(b);
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: (Number(a.total_tokens) || input(a) + output(a))
+      + (Number(b.total_tokens) || input(b) + output(b)),
+    prompt_tokens_details: { cached_tokens: cached(a) + cached(b) }
+  };
+}
+
 /**
  * 把 { mediaType, data } 形式的图片转成 OpenAI 的 image_url 内容块。
  * 用 **data URI**（不外链）：不依赖 QQ 图床可达，也不给桥接开一条新的 SSRF 面。
@@ -226,7 +245,7 @@ export class DirectRuntime {
             toolCalls: toolCallsMade
           };
         }
-        if (r.usage) usageTotal = r.usage;
+        if (r.usage) usageTotal = usageTotal ? mergeTokenUsage(usageTotal, r.usage) : r.usage;
 
         const calls = r.message?.tool_calls;
         if (!Array.isArray(calls) || calls.length === 0) {
@@ -278,7 +297,7 @@ export class DirectRuntime {
           return {
             ok: true,
             text: wrapText,
-            usage: wrap.usage ?? usageTotal,
+            usage: wrap.usage ? (usageTotal ? mergeTokenUsage(usageTotal, wrap.usage) : wrap.usage) : usageTotal,
             model: wrap.model ?? this.model,
             rounds: rounds + 1,
             toolCalls: toolCallsMade,

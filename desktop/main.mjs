@@ -24,6 +24,7 @@ import { runUiProbe, collectOnce, summarize } from './lib/ui-probe.js';
 import { readRuntimeApiKey, readRuntimeConfig, writeRuntimeConfig } from './lib/runtime-config.js';
 import { DirectRuntime } from '../src/agent-runtime/direct.js';
 import { generateImage, resolveComfyConfig } from '../src/comfy-client.js';
+import { readApiBilling } from '../src/api-billing.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -680,6 +681,7 @@ function registerIpc() {
   ipcMain.handle('dsh:installCompatibility', () => runDshCompatibilitySetup());
 
   ipcMain.handle('settings:get', () => loadSettings());
+  ipcMain.handle('billing:get', () => readApiBilling(ROOT));
   ipcMain.handle('settings:set', (_evt, patch) => {
     const next = saveSettings(patch ?? {});
     // 看门狗的启用/冷却时间改动要立刻生效，不必重启应用

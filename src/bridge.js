@@ -23,6 +23,7 @@ import { safeFetchBuffer, looksLikeImageBuffer } from './safe-fetch.js';
 import { extractForwardIds, forwardIdFromData, sanitizeForwardId, formatForwardResponse } from './forward.js';
 import { safeSlice, safeSliceTail, stripLoneSurrogates, stripLoneSurrogatesDeep } from './text-safety.js';
 import { escapeCqText, unquoteJsonString, withTimeout } from './runtime-utils.js';
+import { recordApiUsage } from './api-billing.js';
 import {
   loadSlang,
   saveSlang,
@@ -7482,6 +7483,10 @@ async function main() {
       if (!isV2 && r.text && !opts.silent) await sendToQQ(key, r.text);
 
       const u = r.usage;
+      if (u) {
+        try { recordApiUsage(ROOT, u, r.model ?? cfg.runtime?.model ?? 'unknown'); }
+        catch (error) { log(`[direct] API 用量记录失败：${error?.message ?? error}`); }
+      }
       log(`[direct] ${key} 已回复（${isV2 ? 'reserved2·工具发言' : 'chat·桥接转发'}）`
         + `${u ? ` token ${u.total_tokens ?? '?'}` : ''}`
         + `${r.rounds > 1 ? ` · ${r.rounds - 1} 轮工具` : ''}`

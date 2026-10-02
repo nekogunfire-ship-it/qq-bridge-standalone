@@ -50,6 +50,7 @@
     "test:responsive": "node scripts/test-responsive-breakpoints.mjs",
     "test:runtime-config": "node scripts/test-runtime-config.mjs",
     "test:runtime-direct": "node scripts/test-agent-runtime-direct.mjs",
+    "test:billing": "node scripts/test-api-billing.mjs",
     "test:direct-mode": "node scripts/test-bridge-direct-mode.mjs",
     "test:mcp-tools": "node scripts/test-mcp-tool-provider.mjs",
     "test:v2-guardrails": "node scripts/test-reserved2-guardrails.mjs",

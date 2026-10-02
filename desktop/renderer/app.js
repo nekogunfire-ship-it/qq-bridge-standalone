@@ -315,7 +315,38 @@ function applySettings(s) {
   $('setTray').checked = Boolean(s.minimizeToTray);
   $('setWatchdog').checked = s.watchdogEnabled !== false;
   $('setWatchdogCooldown').value = String(s.watchdogCooldownSeconds ?? 180);
+  $('billingCurrency').value = s.billing?.currency ?? 'CNY';
+  $('billingInputPrice').value = String(s.billing?.inputPerMillion ?? 0);
+  $('billingOutputPrice').value = String(s.billing?.outputPerMillion ?? 0);
   scheduleAutoCheck(Number(s.autoCheckSeconds ?? 60));
+  refreshBilling().catch(() => {});
+}
+
+function formatTokenCount(value) {
+  return new Intl.NumberFormat('zh-CN').format(Number(value) || 0);
+}
+
+function billingCost(stats) {
+  const inputPrice = Math.max(0, Number($('billingInputPrice').value) || 0);
+  const outputPrice = Math.max(0, Number($('billingOutputPrice').value) || 0);
+  return ((Number(stats?.inputTokens) || 0) * inputPrice + (Number(stats?.outputTokens) || 0) * outputPrice) / 1_000_000;
+}
+
+function formatMoney(value) {
+  const currency = $('billingCurrency').value || 'CNY';
+  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency, minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(value);
+}
+
+async function refreshBilling() {
+  const b = await window.desktop.billingGet();
+  $('billingTodayCost').textContent = formatMoney(billingCost(b.today));
+  $('billingTotalCost').textContent = formatMoney(billingCost(b.total));
+  $('billingRequests').textContent = formatTokenCount(b.total.requests);
+  $('billingInputTokens').textContent = formatTokenCount(b.total.inputTokens);
+  $('billingOutputTokens').textContent = formatTokenCount(b.total.outputTokens);
+  $('billingCachedTokens').textContent = formatTokenCount(b.total.cachedTokens);
+  $('billingTotalTokens').textContent = formatTokenCount(b.total.totalTokens);
+  $('billingUpdated').textContent = b.updatedAt ? `更新于 ${new Date(b.updatedAt).toLocaleString('zh-CN')}` : '暂无直连 API 用量';
 }
 
 function scheduleAutoCheck(seconds) {
@@ -335,6 +366,15 @@ function bindSettings() {
   $('setTray').addEventListener('change', (e) => saveSetting({ minimizeToTray: e.target.checked }));
   $('setWatchdog').addEventListener('change', (e) => saveSetting({ watchdogEnabled: e.target.checked }));
   $('setWatchdogCooldown').addEventListener('change', (e) => saveSetting({ watchdogCooldownSeconds: Number(e.target.value) }));
+  const saveBilling = () => saveSetting({ billing: {
+    currency: $('billingCurrency').value,
+    inputPerMillion: Math.max(0, Number($('billingInputPrice').value) || 0),
+    outputPerMillion: Math.max(0, Number($('billingOutputPrice').value) || 0)
+  } });
+  $('billingCurrency').addEventListener('change', saveBilling);
+  $('billingInputPrice').addEventListener('change', saveBilling);
+  $('billingOutputPrice').addEventListener('change', saveBilling);
+  $('btnBillingRefresh').addEventListener('click', () => refreshBilling().catch((error) => toast(`读取用量失败：${error.message}`, 'error')));
 }
 
 function bindActions() {
