@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('desktop', {
   comfyInstall: (options) => ipcRenderer.invoke('comfy:install', options || {}),
   comfyInstallModel: (options) => ipcRenderer.invoke('comfy:installModel', options || {}),
   comfyCancelSetup: () => ipcRenderer.invoke('comfy:cancelSetup'),
+  comfyGenerate: (options) => ipcRenderer.invoke('comfy:generate', options || {}),
+  showGeneratedImage: (path) => ipcRenderer.invoke('shell:showGeneratedImage', path),
 
   // 设置（自动保存）
   getSettings: () => ipcRenderer.invoke('settings:get'),

@@ -72,6 +72,8 @@ Unselected components are not downloaded. Optional setup is isolated from the QQ
 
 These choices are not limited to first-time setup. Open **Extensions → Environment and Model Installation Center** in the desktop app at any time to install or repair DSH compatibility, download the correct ComfyUI build for your GPU, or download SDXL after accepting its license. You can safely install only the core application first and add extensions later.
 
+The desktop app also provides a dedicated **Image Generation** page alongside Overview and Monitor. Once the environment is ready, you can enter positive and negative prompts, select a model, canvas ratio, sampling steps, CFG, and seed, then generate and preview the result directly in the app. Generated images remain local and are not sent to QQ automatically. If a dependency is missing, the page links directly to Extensions.
+
 > The installer is not commercially code-signed yet, so Windows may show an “Unknown publisher” warning. Each release includes a `SHA256SUMS-*.json` manifest for integrity verification.
 
 ### Manual installation

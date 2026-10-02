@@ -408,7 +408,7 @@ function switchView(view) {
   for (const tab of document.querySelectorAll('.tab')) {
     tab.setAttribute('aria-selected', String(tab.dataset.view === view));
   }
-  const views = { overview: 'viewOverview', monitor: 'viewMonitor', images: 'viewImages', settings: 'viewSettings' };
+  const views = { overview: 'viewOverview', monitor: 'viewMonitor', generate: 'viewGenerate', images: 'viewImages', settings: 'viewSettings' };
   for (const [name, id] of Object.entries(views)) {
     const el = $(id);
     if (el) el.hidden = name !== view;
@@ -417,6 +417,7 @@ function switchView(view) {
   if (view !== 'overview') $('progressBar').hidden = true;
   // 切到监测页时立刻刷一次，不用等下一个轮询周期
   if (view === 'monitor') refreshMonitor().catch(() => {});
+  if (view === 'generate') refreshImageWorkbench().catch(() => {});
   if (view === 'images') {
     refreshComfySetup().catch(() => {});
     if (!comfySetupTimer) comfySetupTimer = setInterval(() => refreshComfySetup().catch(() => {}), 1000);
@@ -505,6 +506,69 @@ function bindComfySetup() {
   $('comfyLicenseLink').addEventListener('click', (event) => {
     event.preventDefault();
     window.desktop.openExternal('https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md');
+  });
+}
+
+let generatedImagePath = '';
+
+async function refreshImageWorkbench() {
+  const s = await window.desktop.comfySetupStatus();
+  const model = s.models?.sdxlBase;
+  const ready = Boolean(s.installed && model?.installed);
+  $('generateBadge').dataset.state = ready ? 'ok' : 'off';
+  $('generateBadge').textContent = ready ? '可以出图' : '需要安装扩展';
+  $('generateServiceState').textContent = ready ? 'ComfyUI 与模型已安装' : '请先安装 ComfyUI 与图片模型';
+  $('btnGenerateImage').disabled = !ready;
+  const select = $('generateModel');
+  if (!select.options.length) {
+    const option = document.createElement('option');
+    option.value = 'sdxl-base';
+    option.textContent = 'Stable Diffusion XL Base 1.0';
+    select.appendChild(option);
+  }
+}
+
+function bindImageWorkbench() {
+  $('btnGenerateOpenExtensions').addEventListener('click', () => switchView('images'));
+  $('btnGenerateStartComfy').addEventListener('click', () => runComfy('start', '启动出图'));
+  $('btnGenerateOpenFile').addEventListener('click', async () => {
+    if (!generatedImagePath) return;
+    const r = await window.desktop.showGeneratedImage(generatedImagePath);
+    if (!r.ok) toast(`无法打开图片位置：${r.error}`, 'error');
+  });
+  $('btnGenerateImage').addEventListener('click', async () => {
+    const prompt = $('generatePrompt').value.trim();
+    if (!prompt) { toast('请先填写正向提示词', 'warn'); return; }
+    const [width, height] = $('generateSize').value.split('x').map(Number);
+    const button = $('btnGenerateImage');
+    button.disabled = true;
+    button.textContent = '生成中…';
+    $('generateStatus').textContent = '正在提交工作流并等待 ComfyUI 完成…';
+    const started = Date.now();
+    const r = await window.desktop.comfyGenerate({
+      prompt,
+      negativePrompt: $('generateNegative').value.trim(),
+      model: $('generateModel').value,
+      width,
+      height,
+      steps: $('generateSteps').value,
+      cfg: $('generateCfg').value,
+      seed: $('generateSeed').value
+    });
+    button.textContent = '生成图片';
+    button.disabled = false;
+    if (!r.ok) {
+      $('generateStatus').textContent = `生成失败：${r.error}`;
+      toast(`生成失败：${r.error}`, 'error');
+      return;
+    }
+    generatedImagePath = r.localPath || '';
+    $('generatePreview').src = r.imageUrl;
+    $('generatePreview').hidden = false;
+    $('generateEmpty').hidden = true;
+    $('btnGenerateOpenFile').disabled = !generatedImagePath;
+    $('generateStatus').textContent = `生成完成，用时 ${((r.elapsedMs || Date.now() - started) / 1000).toFixed(1)} 秒`;
+    $('generateMeta').textContent = `${r.options.model} · ${r.options.width}×${r.options.height} · ${r.options.steps} 步 · CFG ${r.options.cfg} · Seed ${r.options.seed}`;
   });
 }
 
@@ -1166,6 +1230,7 @@ async function refreshOverviewEvents() {
   bindMonitor();
   bindRuntime();
   bindComfySetup();
+  bindImageWorkbench();
 
   try {
     const info = await window.desktop.info();

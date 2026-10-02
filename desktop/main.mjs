@@ -23,6 +23,7 @@ import { findDownServices, decideWatchdog, isScriptWatchdogAlive } from './lib/w
 import { runUiProbe, collectOnce, summarize } from './lib/ui-probe.js';
 import { readRuntimeApiKey, readRuntimeConfig, writeRuntimeConfig } from './lib/runtime-config.js';
 import { DirectRuntime } from '../src/agent-runtime/direct.js';
+import { generateImage, resolveComfyConfig } from '../src/comfy-client.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -51,6 +52,7 @@ function readComfyHost() {
 }
 const CONSOLE_URL = 'http://127.0.0.1:3100/';
 let dshSetupRunning = false;
+let imageGenerationRunning = false;
 
 function dshSetupStatus() {
   const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
@@ -623,6 +625,57 @@ function registerIpc() {
   ipcMain.handle('comfy:install', (_evt, options) => startComfyInstall(ROOT, options ?? {}));
   ipcMain.handle('comfy:installModel', (_evt, options) => startModelInstall(ROOT, options ?? {}));
   ipcMain.handle('comfy:cancelSetup', () => cancelComfySetup());
+  ipcMain.handle('comfy:generate', async (_evt, input = {}) => {
+    if (imageGenerationRunning) return { ok: false, error: '已有图片生成任务正在运行' };
+    imageGenerationRunning = true;
+    try {
+      const cfg = resolveComfyConfig(ROOT);
+      const result = await generateImage(ROOT, {
+        prompt: String(input.prompt ?? '').slice(0, 4000),
+        negativePrompt: String(input.negativePrompt ?? '').slice(0, 4000),
+        model: String(input.model ?? '').slice(0, 100),
+        width: input.width,
+        height: input.height,
+        steps: input.steps,
+        cfg: input.cfg,
+        seed: input.seed === '' ? undefined : input.seed
+      }, cfg);
+      return {
+        ok: true,
+        imageUrl: `data:${result.image.mimeType};base64,${result.image.buffer.toString('base64')}`,
+        localPath: result.localPath,
+        elapsedMs: result.elapsedMs,
+        promptId: result.promptId,
+        options: {
+          model: result.options.modelLabel,
+          seed: result.options.seed,
+          width: result.options.width,
+          height: result.options.height,
+          steps: result.options.steps,
+          cfg: result.options.cfg
+        }
+      };
+    } catch (error) {
+      return { ok: false, error: error?.message ?? String(error) };
+    } finally {
+      imageGenerationRunning = false;
+    }
+  });
+  ipcMain.handle('shell:showGeneratedImage', async (_evt, requestedPath) => {
+    try {
+      const cfg = resolveComfyConfig(ROOT);
+      const root = fs.realpathSync(path.resolve(cfg.outputDir));
+      const target = fs.realpathSync(path.resolve(String(requestedPath ?? '')));
+      const relative = path.relative(root, target);
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+        return { ok: false, error: '只能打开 ComfyUI 输出目录内的图片' };
+      }
+      shell.showItemInFolder(target);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error?.message ?? String(error) };
+    }
+  });
   ipcMain.handle('dsh:setupStatus', () => dshSetupStatus());
   ipcMain.handle('dsh:installCompatibility', () => runDshCompatibilitySetup());
 

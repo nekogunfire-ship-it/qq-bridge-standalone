@@ -8,7 +8,7 @@
     所以 connect-src 只留 'self' 就够；保留 127.0.0.1:3100 只是为了将来可能的直连探测。
   -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:3100" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:3100" />
   <title>QQ 桥接控制台</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -26,6 +26,7 @@
     <nav class="tabs" id="tabs">
       <button class="tab" data-view="overview" aria-selected="true" title="服务状态、当前模式、最近事件">总览</button>
       <button class="tab" data-view="monitor" aria-selected="false" title="QQ 里正在发生什么：会话唤醒状态与活动流">监测</button>
+      <button class="tab" data-view="generate" aria-selected="false" title="使用本机 ComfyUI 生成图片">出图</button>
       <button class="tab" data-view="images" aria-selected="false" title="按需安装 DSH、ComfyUI 与图片生成模型">扩展</button>
       <button class="tab" data-view="settings" aria-selected="false" title="偏好、看门狗、配置、应用与卸载">设置</button>
     </nav>
@@ -143,7 +144,47 @@
     </section>
   </main>
 
-  <!-- ═══════════════ ③ 扩展安装：DSH / ComfyUI / 图片模型 ═══════════════ -->
+  <!-- ═══════════════ ③ 出图：独立的本地图片生成工作台 ═══════════════ -->
+  <main id="viewGenerate" class="view" hidden>
+    <section class="image-hero panel">
+      <div>
+        <span class="guide-kicker">本地创作</span>
+        <h2>图片生成工作台</h2>
+        <p class="muted">填写提示词并调用本机 ComfyUI。图片只保存在本机，不会自动发送到 QQ。</p>
+      </div>
+      <span id="generateBadge" class="setup-badge" data-state="off">正在检查…</span>
+    </section>
+
+    <div class="generate-layout">
+      <section class="panel generate-form">
+        <div class="panel-head"><h2>生成设置</h2><span id="generateServiceState" class="muted small"></span></div>
+        <label class="field field-stack"><span class="field-label">正向提示词</span><textarea id="generatePrompt" rows="5" placeholder="masterpiece, best quality, 1girl, solo, detailed background"></textarea></label>
+        <label class="field field-stack"><span class="field-label">负向提示词（可留空，使用模型默认值）</span><textarea id="generateNegative" rows="3" placeholder="worst quality, low quality, blurry, watermark"></textarea></label>
+        <div class="generate-options">
+          <label class="field field-stack"><span class="field-label">模型</span><select id="generateModel"></select></label>
+          <label class="field field-stack"><span class="field-label">尺寸</span><select id="generateSize"><option value="1024x1024">1024 × 1024</option><option value="832x1216">832 × 1216（竖图）</option><option value="1216x832">1216 × 832（横图）</option><option value="768x768">768 × 768（较快）</option></select></label>
+          <label class="field field-stack"><span class="field-label">步数</span><input id="generateSteps" type="number" min="1" max="60" value="28" /></label>
+          <label class="field field-stack"><span class="field-label">CFG</span><input id="generateCfg" type="number" min="0" max="30" step="0.5" value="5.5" /></label>
+          <label class="field field-stack"><span class="field-label">随机种子（留空随机）</span><input id="generateSeed" type="number" min="0" placeholder="随机" /></label>
+        </div>
+        <div class="setup-actions">
+          <button id="btnGenerateImage" class="btn btn-primary">生成图片</button>
+          <button id="btnGenerateStartComfy" class="btn">启动 ComfyUI</button>
+          <button id="btnGenerateOpenExtensions" class="btn">安装环境 / 模型</button>
+        </div>
+        <p id="generateStatus" class="setup-detail muted small">等待生成</p>
+      </section>
+
+      <section class="panel generate-preview-panel">
+        <div class="panel-head"><h2>生成结果</h2><span class="grow"></span><button id="btnGenerateOpenFile" class="btn btn-small" disabled>打开图片位置</button></div>
+        <div id="generateEmpty" class="generate-empty">生成完成后，图片会显示在这里。</div>
+        <img id="generatePreview" class="generate-preview" alt="本地生成结果" hidden />
+        <p id="generateMeta" class="muted small mono"></p>
+      </section>
+    </div>
+  </main>
+
+  <!-- ═══════════════ ④ 扩展安装：DSH / ComfyUI / 图片模型 ═══════════════ -->
   <main id="viewImages" class="view" hidden>
     <section class="image-hero panel">
       <div>
@@ -219,7 +260,7 @@
     </section>
   </main>
 
-  <!-- ═══════════════ ④ 设置：偏好 / 配置 / 应用 / 危险区 ═══════════════ -->
+  <!-- ═══════════════ ⑤ 设置：偏好 / 配置 / 应用 / 危险区 ═══════════════ -->
   <main id="viewSettings" class="view" hidden>
     <div class="settings-grid">
       <!-- ── AI 运行时：dsh / direct ────────────────────────────────────── -->
