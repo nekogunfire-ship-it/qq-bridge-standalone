@@ -1,0 +1,12 @@
+{
+  "name": "@local/dsh-qq-preset",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "qq-bridge agent presets (qq-chat, qq-chat-v2) migrated from the legacy $DSH_HOME/.agent-presets directory format to the DSH 0.1.7 agent-preset bundle format.",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

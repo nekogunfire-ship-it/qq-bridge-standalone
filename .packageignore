@@ -1,0 +1,15 @@
+# .packageignore —— 打包时额外排除的路径（tools/package-dist.mjs 读这个文件）
+#
+# 一行一条，相对仓库根；支持 # 注释。写目录名即排除整棵子树。
+# 用途：把"不想外发、又不适合脱敏"的东西挡在发布包外面，而不用改打包脚本。
+#
+# 已经内置排除的（不用在这里重复写）：
+#   node_modules/  state/  archive/  .git/  dist/  tools/runtime/
+#   *.log  *.bak  *.bak-*  config.json  config-bundle-*.json
+#
+# 示例（按需取消注释）：
+# docs/incident-2026-09-25-lone-surrogate-400.md   # 事故复盘里含真实群号
+# roles/小鲸鱼.md                                   # 人设里含你的 QQ 号与群名片
+#
+# 提示：如果只是"不想带真实号码，但内容本身有价值"，用 `--redact` 更合适 ——
+#      它把隐私值替换成 <群号> / <你的QQ号> 这类占位符，且**只改打包副本，不动源文件**。

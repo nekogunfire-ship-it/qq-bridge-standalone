@@ -1,0 +1,37 @@
+@echo off
+chcp 65001 >nul
+title ComfyUI  (关闭本窗口即停止服务)
+rem ============================================================
+rem  ComfyUI 启动脚本（DSH 版）
+rem
+rem  与官方脚本的区别：
+rem   1. 用 main_wrapper.py 启动，放宽 HTTP 请求头上限，
+rem      避免通过 DSH Web GUI 代理访问时报 LineTooLong 错误。
+rem   2. 固定 --listen 127.0.0.1（仅本机可访问，更安全）。
+rem   3. 固定 --disable-api-nodes（纯离线，不加载云端付费节点）。
+rem   4. 启动后自动打开浏览器。
+rem   5. 加 --enable-manager 启用 ComfyUI-Manager（插件管理器）。
+rem
+rem  注意：本窗口是 ComfyUI 本体，关掉窗口＝停止服务。
+rem ============================================================
+cd /d "%~dp0"
+
+echo.
+echo   ComfyUI 正在启动...
+echo   地址: http://127.0.0.1:8188
+echo   浏览器将在 6 秒后自动打开
+echo.
+echo   [!] 请不要关闭本窗口，关闭即停止服务。
+echo.
+
+rem 后台延时打开浏览器（不阻塞服务启动）
+start "" /b cmd /c "timeout /t 6 /nobreak >nul & start "" http://127.0.0.1:8188"
+
+".\python_embeded\python.exe" -s "main_wrapper.py" --windows-standalone-build --listen 127.0.0.1 --disable-api-nodes --enable-manager
+
+echo.
+echo ============================================================
+echo   ComfyUI 已停止。
+echo   如果上面有红色报错，多半是显卡驱动需要更新。
+echo ============================================================
+pause

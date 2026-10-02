@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <!--
+    CSP 说明：控制台以**独立窗口**打开（顶层页面），因此不需要 frame-src。
+    监测页的数据由主进程经 IPC 取（见 main.mjs 的 bridgeGet），渲染层不直接访问桥接，
+    所以 connect-src 只留 'self' 就够；保留 127.0.0.1:3100 只是为了将来可能的直连探测。
+  -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:3100" />
+  <title>QQ 桥接控制台</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 标题栏（自绘）：只留最常用的两个动作，其余按分区归位 -->
+  <header class="titlebar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div class="brand-text">
+        <strong>QQ 桥接控制台</strong>
+        <span id="appMeta" class="muted">正在读取版本…</span>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab" data-view="overview" aria-selected="true" title="服务状态、当前模式、最近事件">总览</button>
+      <button class="tab" data-view="monitor" aria-selected="false" title="QQ 里正在发生什么：会话唤醒状态与活动流">监测</button>
+      <button class="tab" data-view="settings" aria-selected="false" title="偏好、看门狗、配置、应用与卸载">设置</button>
+    </nav>
+
+    <div class="status-pill" id="overallPill" data-state="checking">
+      <span class="dot"></span>
+      <span id="overallText">检查中…</span>
+    </div>
+
+    <div class="actions">
+      <button id="btnStart" class="btn btn-primary" title="启动当前运行时需要的服务">▶ 一键启动</button>
+      <button id="btnCheck" class="btn" title="立即重新体检">⟲ 检查</button>
+    </div>
+  </header>
+
+  <!-- 操作进度条：正在执行生命周期动作时显示，带实时计时，避免"看起来卡死" -->
+  <div id="progressBar" class="progress" hidden>
+    <span class="spinner" aria-hidden="true"></span>
+    <span id="progressText">正在执行…</span>
+    <span id="progressElapsed" class="mono">0.0s</span>
+    <span class="muted small" id="progressHint"></span>
+  </div>
+
+  <!-- ═══════════════ ① 总览：现在好不好 ═══════════════ -->
+  <main id="viewOverview" class="view">
+    <section id="guidePanel" class="panel guide-panel" data-state="checking">
+      <div class="guide-mark" aria-hidden="true">→</div>
+      <div class="guide-copy">
+        <span class="guide-kicker">建议下一步</span>
+        <h2 id="guideTitle">正在检查运行状态…</h2>
+        <p id="guideText">检查完成后，这里会告诉你最值得先处理的一件事。</p>
+      </div>
+      <button id="guideAction" class="btn btn-primary" hidden>处理</button>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>服务状态</h2>
+        <span id="checkedAt" class="muted small"></span>
+        <span class="grow"></span>
+        <button id="btnRestartBridge" class="btn btn-small" title="只重启桥接（约 10 秒，不重启 AI 宿主）">⟳ 重启桥接</button>
+        <button id="btnRestart" class="btn btn-small" title="按当前运行时重启整条服务链">⟳⟳ 重启全部</button>
+        <button id="btnStop" class="btn btn-small btn-danger" title="停止全部服务（不需要管理员权限）">■ 停止全部</button>
+      </div>
+      <div id="healthGrid" class="health-grid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>当前状态</h2></div>
+      <div id="ovModeStrip" class="mode-strip">
+        <span class="muted small">读取中…</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>最近事件</h2>
+        <span class="muted small">来自操作时间线（含看门狗自动拉起）</span>
+        <span class="grow"></span>
+        <button id="btnLifecycleLog" class="btn btn-small">查看完整时间线</button>
+      </div>
+      <ul id="ovEvents" class="event-list"><li class="muted small">暂无记录。</li></ul>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>诊断输出</h2>
+        <span class="grow"></span>
+        <button id="btnDiagnose" class="btn btn-small">运行诊断</button>
+      </div>
+      <pre id="diagnoseOut" class="console-out">点「运行诊断」查看详情（等价于 restart-status / 诊断脚本的输出）。</pre>
+    </section>
+  </main>
+
+  <!-- ═══════════════ ② 监测：QQ 里正在发生什么 ═══════════════ -->
+  <main id="viewMonitor" class="view" hidden>
+    <section class="panel panel-grow">
+      <div class="panel-head">
+        <h2>会话</h2>
+        <span id="monStatus" class="muted small"></span>
+        <span class="grow"></span>
+        <button id="btnOpenConsoleWindow" class="btn btn-small btn-primary" title="打开网页控制台：聊天 / 出图 / 角色 / 黑话 / 记忆等全部功能">打开控制台窗口</button>
+        <button id="btnEmbedBrowser" class="btn btn-small" title="在系统浏览器里打开控制台">浏览器打开</button>
+      </div>
+      <div class="monitor-layout">
+        <div id="monList" class="conv-list">
+          <p class="muted small">读取中…</p>
+        </div>
+        <div class="activity-col">
+          <div class="panel-head">
+            <h2>活动流</h2>
+            <span id="monActCount" class="muted small"></span>
+            <span class="grow"></span>
+            <select id="monActFilter" class="select-small" title="按类型筛选活动流">
+              <option value="">全部</option>
+              <option value="send">只看发送</option>
+              <option value="error">只看报错</option>
+              <option value="wake">只看唤醒</option>
+              <option value="inbox">只看收消息</option>
+            </select>
+            <button id="monPauseBtn" class="btn btn-small" title="暂停自动刷新，方便复制内容">⏸ 暂停</button>
+          </div>
+          <div id="monActivity" class="activity-out">读取中…</div>
+        </div>
+      </div>
+      <div id="monDetail" class="mon-detail" hidden>
+        <div class="panel-head">
+          <h2 id="monDetailTitle">最近消息</h2>
+          <span class="grow"></span>
+          <button id="monDetailClose" class="btn btn-small">关闭</button>
+        </div>
+        <div id="monDetailBody" class="msg-list"></div>
+      </div>
+      <p class="muted small" id="embedStatus">服务地址 127.0.0.1:3100</p>
+    </section>
+  </main>
+
+  <!-- ═══════════════ ③ 设置：偏好 / 配置 / 应用 / 危险区 ═══════════════ -->
+  <main id="viewSettings" class="view" hidden>
+    <div class="settings-grid">
+      <!-- ── AI 运行时：dsh / direct ────────────────────────────────────── -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>AI 运行时</h2>
+          <span id="rtState" class="muted small"></span>
+        </div>
+
+        <p class="muted small" id="rtCurrent" style="margin:2px 0 8px">读取中…</p>
+
+        <label class="field field-check">
+          <input type="radio" name="rtType" value="dsh" id="rtTypeDsh" />
+          <span>挂 <b>DSH</b> —— 兼容现有 DSH 会话与工作区</span>
+        </label>
+        <label class="field field-check">
+          <input type="radio" name="rtType" value="direct" id="rtTypeDirect" />
+          <span>直连 <b>AI API</b> —— 不需要 DSH，支持工具与长期记忆；本地接口可不填 key</span>
+        </label>
+
+        <div id="rtDirectFields">
+          <label class="field field-stack">
+            <span class="field-label">接口地址</span>
+            <input type="text" id="rtBaseUrl" spellcheck="false" placeholder="https://api.deepseek.com/v1" />
+          </label>
+          <label class="field field-stack">
+            <span class="field-label">
+              模型
+              <span class="muted" id="rtModelHint"></span>
+            </span>
+            <!-- 下拉选项来自接口的 GET /models；拉不到或想用列表外的名字时选「自定义…」 -->
+            <select id="rtModel"></select>
+            <input type="text" id="rtModelCustom" spellcheck="false" placeholder="自定义模型名" hidden />
+          </label>
+          <button id="btnRuntimeSwitchModel" class="btn btn-block">↻ 切换模型（探测 → 保存 → 立即生效）</button>
+
+          <!-- 模型检测：主动问接口"你有哪些可用模型"，并把结果**显示出来**
+               （以前只是悄悄填进下拉，用户看不到检测到了什么、更看不到为什么失败） -->
+          <div class="rt-detect">
+            <div class="rt-detect-head">
+              <span class="muted small">模型检测</span>
+              <span class="grow"></span>
+              <button id="btnRuntimeDetect" class="btn btn-small">🔄 重新检测</button>
+            </div>
+            <div id="rtDetectResult" class="rt-detect-body muted small">还没检测。</div>
+          </div>
+          <p class="muted small" style="margin:6px 0 8px">
+            会先用新模型发一次最小请求<b>确认可用</b>；探通了才写入配置并让桥接立即换用 ——
+            <b>不通过就什么都不改</b>（避免换成一个不存在的模型名后机器人静默哑掉）。
+            会话历史保留，重启桥接后仍是这个模型。
+          </p>
+          <label class="field field-stack">
+            <span class="field-label">API key</span>
+            <input type="password" id="rtApiKey" spellcheck="false" autocomplete="off" placeholder="（未填写）" />
+          </label>
+          <p class="muted small" style="margin:2px 0 8px">
+            密钥不会显示在界面上（只显示"填过没有"）。<b>留空表示沿用已保存的那把</b>，不会清掉。
+          </p>
+        </div>
+
+        <!-- 行为开关：这两项对应"看图看不见"与"对话风格变了"两件真实发生过的事 -->
+        <div class="rt-advanced" id="rtAdvanced">
+          <label class="field field-check">
+            <input type="checkbox" id="rtImages" />
+            <span>让 AI <b>能看见图片</b> —— 群友发的图/表情会一起发给模型（关掉可省流量与 token）</span>
+          </label>
+          <label class="field field-stack">
+            <span class="field-label">温度 <span class="muted">（0 = 最保守，留空 = 用模型默认）</span></span>
+            <input type="number" id="rtTemperature" min="0" max="2" step="0.1" placeholder="留空 = 模型默认" />
+          </label>
+          <p class="muted small" style="margin:2px 0 8px">
+            换模型会直接改变说话风格 —— <code>deepseek-chat</code> 的默认腔调会被角色卡判为「AI 味」。
+          </p>
+        </div>
+
+        <button id="btnRuntimeTest" class="btn btn-block">测试连接</button>
+        <button id="btnRuntimeSave" class="btn btn-block btn-primary">保存运行时设置</button>
+        <p class="muted small" id="rtResult" style="margin:6px 0 0"></p>
+        <p class="muted small" style="margin:6px 0 0">
+          保存会写进 <code>config.json</code>（仅改 <code>runtime</code> 段，改前自动备份到 <code>archive/</code>）。
+          <b>改完需要重启桥接才生效。</b>
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>日常偏好</h2><span class="muted small">改动自动保存</span></div>
+        <label class="field">
+          <span class="field-label">自动检查间隔</span>
+          <select id="setAutoCheck">
+            <option value="0">关闭</option>
+            <option value="30">30 秒</option>
+            <option value="60">1 分钟</option>
+            <option value="300">5 分钟</option>
+          </select>
+        </label>
+        <label class="field field-check">
+          <input type="checkbox" id="setAutoStart" />
+          <span>启动应用时自动拉起服务</span>
+        </label>
+        <label class="field field-check">
+          <input type="checkbox" id="setTray" />
+          <span>关闭窗口时最小化到托盘</span>
+        </label>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>看门狗</h2></div>
+        <label class="field field-check">
+          <input type="checkbox" id="setWatchdog" />
+          <span>服务掉线时自动拉起（每 30 秒探测）</span>
+        </label>
+        <label class="field">
+          <span class="field-label">两次自动拉起最小间隔</span>
+          <select id="setWatchdogCooldown">
+            <option value="60">1 分钟</option>
+            <option value="180">3 分钟</option>
+            <option value="600">10 分钟</option>
+          </select>
+        </label>
+        <p class="muted small" style="margin:2px 0 0">
+          探测 QQ 桥接（3100）与 SnowLuma（3000）。放在主进程里跑，所以窗口收进托盘后依然有效。
+          触发时会记入「操作时间线」（标为 watchdog），但不会打断你正在做的操作。
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>配置与数据</h2></div>
+        <button id="btnExportConfig" class="btn btn-block" title="导出完整配置（含你的 QQ 号与令牌，请勿随意外发）">⬇ 导出配置（完整，含隐私）</button>
+        <button id="btnExportSanitized" class="btn btn-block" title="导出脱敏配置：清掉 QQ 号、令牌、白名单、DSH 端点，适合分享给别人">⬇ 导出配置（脱敏，可分享）</button>
+        <button id="btnImportConfig" class="btn btn-block" title="从配置包导入（会先预览，确认后才覆盖，并自动备份）">⬆ 导入配置…</button>
+        <p class="muted small" style="margin:6px 0 0">
+          导出会生成一个 config-bundle-*.json 放在仓库根目录。导入时先显示预览，
+          确认后才覆盖 config.json（覆盖前自动备份到 archive/）。
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>应用</h2></div>
+        <button id="btnRelaunchApp" class="btn btn-block" title="重新加载界面（改过界面代码后需要）">⟳ 重启应用（加载界面改动）</button>
+        <div class="quick">
+          <button class="btn btn-block" data-open="openDsh">打开 DSH 界面</button>
+          <button class="btn btn-block" data-open="openConfig">打开 config.json</button>
+          <button class="btn btn-block" data-open="openModels">打开模型目录</button>
+          <button class="btn btn-block" data-open="openState">打开数据目录</button>
+        </div>
+        <button id="btnQuitApp" class="btn btn-block btn-danger" title="完全退出桌面应用（服务不会被停止）">✕ 退出应用</button>
+        <p class="muted small" style="margin:6px 0 0">
+          注意区分：这里是桌面应用本身的重启/退出；「总览」里的重启是重启 QQ 服务，两者互不影响。
+          退出应用不会停止桥接/DSH 服务。
+        </p>
+      </section>
+
+      <section class="panel panel-danger">
+        <div class="panel-head"><h2>⚠ 危险区</h2></div>
+        <button id="btnUninstall" class="btn btn-block btn-danger" title="卸载本软件（会先显示影响预览并让你选择数据去向）">🗑 卸载 QQ 桥接控制台</button>
+        <p class="muted small" style="margin:6px 0 0">
+          会先显示影响预览，并询问你的数据（对话历史 / 黑话库 / config.json）是保留、归档还是删除。
+          确认后由根目录的独立卸载程序接管（本应用会退出，因为不能删除自己正在运行的文件）。
+        </p>
+        <p id="uninstallInfo" class="muted small mono" style="margin:6px 0 0"></p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>关于</h2></div>
+        <p class="muted small" id="aboutText">
+          「总览」看服务是否正常；「监测」看 QQ 里正在发生什么；聊天 / 出图 / 角色 / 黑话 / 记忆等
+          完整功能在网页控制台里（「监测」页可一键打开）。
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <!-- pure.js 先加载：它是无 DOM 依赖的纯函数（数据 → 人话的翻译），Node 测试也直接 require 它 -->
+  <script src="pure.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

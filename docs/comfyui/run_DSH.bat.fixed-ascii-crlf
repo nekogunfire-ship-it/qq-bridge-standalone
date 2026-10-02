@@ -1,0 +1,53 @@
+@echo off
+chcp 65001 >nul
+title ComfyUI  (close this window to stop the service)
+cd /d "%~dp0"
+
+rem ============================================================
+rem  ComfyUI launcher (DSH edition)
+rem
+rem  Differences from the official launcher:
+rem    1. Starts through main_wrapper.py, which raises the aiohttp
+rem       HTTP header limit. The DSH Web GUI proxy injects a very
+rem       long dsh-auth-* header (>8190 bytes) and stock aiohttp
+rem       answers 400 / "LineTooLong" for it.
+rem    2. Pinned to --listen 127.0.0.1 (local access only).
+rem    3. --disable-api-nodes (fully offline, no cloud/paid nodes).
+rem    4. Opens the browser automatically after startup.
+rem    5. --enable-manager enables ComfyUI-Manager.
+rem
+rem  NOTE: this window IS the ComfyUI process. Closing it stops it.
+rem
+rem  IMPORTANT -- THIS FILE MUST STAY PURE ASCII **AND** USE CRLF.
+rem    cmd.exe reads BOM-less .bat files with the system ANSI code page
+rem    (cp936 here), so UTF-8 Chinese gets mis-decoded and eats the next
+rem    character. Worse, cmd.exe needs CRLF line breaks to parse a batch
+rem    file at all: with bare LF it merges lines and shreds every command,
+rem    producing a wall of "'xxx' is not recognized as an internal or
+rem    external command". A previous revision of this file had UTF-8
+rem    Chinese and LF-only endings, which is exactly why ComfyUI refused
+rem    to start. Keep it ASCII, keep CRLF.
+rem ============================================================
+
+echo.
+echo   ComfyUI is starting...
+echo   Address: http://127.0.0.1:8188
+echo   The browser will open automatically in 6 seconds.
+echo.
+echo   [!] Do not close this window - closing it stops the service.
+echo.
+
+rem Open the browser after a delay, in the background (does not block startup).
+rem Delayed expansion is not needed here; the unquoted URL keeps quoting simple.
+start "" /b cmd /c "timeout /t 6 /nobreak >nul & start http://127.0.0.1:8188"
+
+rem -X utf8 keeps the wrapper's Chinese log line readable in this console.
+".\python_embeded\python.exe" -s -X utf8 "main_wrapper.py" --windows-standalone-build --listen 127.0.0.1 --disable-api-nodes --enable-manager
+
+echo.
+echo ============================================================
+echo   ComfyUI has stopped.
+echo   If there were red errors above, the GPU driver usually needs
+echo   updating, or run_nvidia_gpu.bat can be used as a fallback.
+echo ============================================================
+pause

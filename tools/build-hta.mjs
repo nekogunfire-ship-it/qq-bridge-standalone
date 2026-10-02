@@ -1,0 +1,545 @@
+// build-hta.mjs
+// ---------------------------------------------------------------------------
+// 由 tools/services.json 生成两个产物，保证界面与脚本同源、不会手改跑偏：
+//   tools/launcher.hta        双击即用的图形界面（HTA = 免安装、无依赖的 Windows 桌面应用）
+//   tools/runtime/init.json   脚本侧用的路径/端口配置（qq-bridge-launcher.ps1 启动时读）
+//
+// 用法：node tools/build-hta.mjs
+// ---------------------------------------------------------------------------
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const toolsDir = path.dirname(fileURLToPath(import.meta.url));
+const bridgeDir = path.dirname(toolsDir);
+const configPath = path.join(toolsDir, 'services.json');
+
+const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+const runtimeDir = path.join(toolsDir, 'runtime');
+fs.mkdirSync(runtimeDir, { recursive: true });
+
+const jsonForScript = (value) => JSON.stringify(value, null, 2).replace(/<\//g, '<\\/');
+
+// ── 1) init.json：脚本侧配置（ASCII 转义写盘，路径里有中文也安全） ──────────
+const init = {
+  nodeExe: config.nodeExe,
+  dshExe: config.dshExe,
+  snowLumaDir: config.snowLumaDir,
+  ports: config.ports,
+  workspace: path.dirname(bridgeDir),
+  bridgeDir,
+  generatedAt: new Date().toISOString()
+};
+fs.writeFileSync(
+  path.join(runtimeDir, 'init.json'),
+  JSON.stringify(init, null, 2) + '\n',
+  'utf8'
+);
+
+// ── 2) messages.json：脚本侧的中文界面文案 ─────────────────────────────────
+// qq-bridge-launcher.ps1 必须是纯 ASCII（PowerShell 5.1 用 GBK 解析无 BOM 的
+// .ps1，中文字面量会把脚本解析搞崩），所以所有中文都放这里，脚本用 T('key') 取。
+// `logSnowConnected` / `logDshReady` 是去 bridge.log 里匹配的正则，必须和
+// bridge.js 实际打印的文本一致。
+const messages = config.messages ?? {};
+const msgPath = path.join(toolsDir, 'messages.json');
+fs.writeFileSync(msgPath, JSON.stringify(messages, null, 2) + '\n', 'utf8');
+
+// ── 3) launcher.hta ─────────────────────────────────────────────────────────
+const launcherTitle = config.launcher?.title ?? 'QQ 桥接启动器';
+const subtitle = config.launcher?.subtitle ?? '';
+const winWidth = config.launcher?.width ?? 1020;
+const winHeight = config.launcher?.height ?? 720;
+
+const startupArgv = [
+  'powershell.exe',
+  '-NoLogo',
+  '-NoProfile',
+  '-ExecutionPolicy',
+  'Bypass',
+  '-WindowStyle',
+  'Hidden',
+  '-File',
+  path.join(toolsDir, 'qq-bridge-launcher.ps1'),
+  '-Action',
+  'status'
+];
+
+const resultFile = path.join(runtimeDir, 'last-result.json');
+const pollMs = 4000;
+const logPollMs = 12000;
+
+const hta = `<html>
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>${launcherTitle}</title>
+<hta:application
+  id="app"
+  applicationname="${launcherTitle}"
+  border="thin"
+  caption="yes"
+  maximizebutton="no"
+  minimizebutton="yes"
+  scroll="no"
+  showintaskbar="yes"
+  singleinstance="yes"
+  icon="${config.icon ?? ''}"
+  windowstate="normal" />
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #0e1116; color: #dce3ec;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-size: 13px; overflow: hidden;
+  }
+  #shell { display: flex; flex-direction: column; height: 100%; padding: 14px 16px 10px; }
+
+  header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+  .brand h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .5px; }
+  .brand p { margin: 4px 0 0; font-size: 12px; color: #7d8b9e; }
+  .health {
+    display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 10px;
+    font-size: 12px; background: #202836; color: #9fb0c6;
+  }
+  .health.healthy { background: #17351f; color: #66d98b; }
+  .health.partial { background: #3a2f14; color: #e0b34a; }
+  .health.down    { background: #3a1a1f; color: #e6707f; }
+
+  .actions { text-align: right; }
+  button {
+    font-family: inherit; font-size: 13px; color: #dce3ec;
+    background: #1e2634; border: 1px solid #2c3648; border-radius: 6px;
+    padding: 7px 13px; margin: 0 0 6px 6px; cursor: pointer;
+  }
+  button:hover { background: #263143; border-color: #3a4860; }
+  button:active { background: #2f3d53; }
+  button.primary { background: #1d6b45; border-color: #2a8f5d; color: #eafff3; font-weight: 600; }
+  button.primary:hover { background: #238052; }
+  button.danger { background: #52202a; border-color: #743040; color: #ffdfe4; }
+  button.danger:hover { background: #622733; }
+  button:disabled { opacity: .45; cursor: default; }
+
+  #services { flex: 1; overflow-y: auto; }
+  .card {
+    display: flex; align-items: center; gap: 12px;
+    background: #151a23; border: 1px solid #222b3a; border-left: 4px solid #333d4f;
+    border-radius: 8px; padding: 11px 14px; margin-bottom: 8px;
+  }
+  .card.running { border-left-color: #35c46f; }
+  .card.stopped { border-left-color: #4a5468; }
+  .card.error   { border-left-color: #e0525f; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; background: #55606f; flex: 0 0 auto; }
+  .card.running .dot { background: #35c46f; box-shadow: 0 0 8px #35c46f88; }
+  .card.error .dot { background: #e0525f; }
+  .meta { flex: 1; min-width: 0; }
+  .meta .line1 { display: flex; align-items: baseline; gap: 8px; }
+  .meta .name { font-size: 14px; font-weight: 600; }
+  .meta .role { font-size: 11px; color: #6f7d91; }
+  .meta .line2 { margin-top: 3px; font-size: 12px; color: #93a2b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .state { font-size: 12px; padding: 3px 9px; border-radius: 9px; background: #222b3a; color: #93a2b8; white-space: nowrap; }
+  .card.running .state { background: #17351f; color: #66d98b; }
+  .card.error .state { background: #3a1a1f; color: #e6707f; }
+  .ops { flex: 0 0 auto; }
+  .ops button { margin: 0 0 0 5px; padding: 5px 10px; font-size: 12px; }
+
+  #info {
+    height: 104px; overflow-y: auto; margin-top: 8px; padding: 9px 11px;
+    background: #0b0e13; border: 1px solid #1d2531; border-radius: 6px;
+    font-family: Consolas, "Courier New", monospace; font-size: 12px; line-height: 1.55;
+    color: #a9b8cc; white-space: pre-wrap;
+  }
+  #info .t { color: #5d6b7e; }
+  #info .ok { color: #66d98b; }
+  #info .warn { color: #e0b34a; }
+  #info .err { color: #e6707f; }
+
+  footer { display: flex; align-items: center; gap: 14px; padding-top: 9px; font-size: 12px; color: #7d8b9e; }
+  footer a { color: #6fa8ff; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  .grow { flex: 1; }
+  label.chk { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+
+  #busy {
+    display: none; position: fixed; left: 0; top: 0; right: 0; bottom: 0;
+    background: #0e1116cc; color: #dce3ec;
+  }
+  #busy .box { position: absolute; left: 50%; top: 44%; margin-left: -160px; width: 320px; text-align: center; }
+  #busy .bar { height: 4px; background: #1e2634; border-radius: 2px; overflow: hidden; margin-top: 12px; }
+  #busy .bar i { display: block; width: 40%; height: 100%; background: #35c46f; }
+</style>
+</head>
+<body>
+<div id="shell">
+  <header>
+    <div class="brand">
+      <h1>${launcherTitle}</h1>
+      <p>${subtitle}</p>
+      <span class="health" id="health">正在检测…</span>
+    </div>
+    <div class="actions">
+      <div>
+        <button id="btnStart" class="primary" onclick="return act('startAll')">一键启动</button>
+        <button id="btnRestart" onclick="return act('restartAll')">全部重启</button>
+        <button id="btnStop" class="danger" onclick="return act('stopAll')">全部停止</button>
+      </div>
+      <div>
+        <button onclick="return act('syncEndpoint')">同步 DSH 端口</button>
+        <button onclick="return act('status')">刷新状态</button>
+        <button onclick="return openLogs()">查看日志</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="services">正在读取状态…</div>
+
+  <div id="info"></div>
+
+  <footer>
+    <a href="#" onclick="return openUrl('__DSH_URL__')">打开 DSH 网页端</a>
+    <a href="#" onclick="return openUrl('http://127.0.0.1:${config.ports.bridgeConsole}/')">桥接控制台 3100</a>
+    <a href="#" onclick="return openUrl('http://127.0.0.1:${config.ports.snowlumaWeb}/')">SnowLuma WebUI 5099</a>
+    <span class="grow"></span>
+    <label class="chk"><input type="checkbox" id="autoRefresh" checked> 自动刷新</label>
+    <span id="clock"></span>
+    <span id="coreVersion"></span>
+  </footer>
+</div>
+
+<div id="busy"><div class="box"><div id="busyText">处理中…</div><div class="bar"><i></i></div></div></div>
+
+<script language="JScript">
+// ===== 注入数据（build-hta.mjs 生成，勿手改本文件，改 services.json） =====
+var CFG = __CONFIG__;
+// HTA 随安装目录移动时必须仍能找到同目录脚本；不要把构建机绝对路径烘进产物。
+var CFG_FSO = new ActiveXObject('Scripting.FileSystemObject');
+var CFG_SELF = decodeURIComponent(window.location.pathname).replace(/\//g, '\\\\');
+if (/^\\\\[A-Za-z]:/.test(CFG_SELF)) CFG_SELF = CFG_SELF.substr(1);
+var CFG_TOOLS = CFG_FSO.GetParentFolderName(CFG_SELF);
+CFG.ps1 = CFG_FSO.BuildPath(CFG_TOOLS, CFG.ps1);
+CFG.result = CFG_FSO.BuildPath(CFG_TOOLS, CFG.result);
+var POLL_MS = ${pollMs};
+var LOG_POLL_MS = ${logPollMs};
+
+var busy = false;
+var refreshing = false;
+var logVisible = false;
+var logName = 'bridge';
+var logTimer = null;
+
+function core() { return app; }
+
+function writeText(path, text) {
+  var s = new ActiveXObject('ADODB.Stream');
+  s.Type = 2;
+  s.Charset = 'utf-8';
+  s.Open();
+  s.WriteText(text);
+  s.SaveToFile(path, 2);
+  s.Close();
+}
+
+function readText(path) {
+  var s = new ActiveXObject('ADODB.Stream');
+  s.Type = 2;
+  s.Charset = 'utf-8';
+  s.Open();
+  s.LoadFromFile(path);
+  var t = s.ReadText();
+  s.Close();
+  return t;
+}
+
+function fileExists(path) {
+  return new ActiveXObject('Scripting.FileSystemObject').FileExists(path);
+}
+
+function esc(v) {
+  if (v === null || typeof v === 'undefined') return '';
+  return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function stamp() {
+  var d = new Date();
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+
+function serviceDef(id) {
+  for (var i = 0; i < CFG.services.length; i++) {
+    if (CFG.services[i].id === id) return CFG.services[i];
+  }
+  return { id: id, name: id, role: '', detail: '' };
+}
+
+function setInfo(html) {
+  document.getElementById('info').innerHTML = html;
+}
+
+function infoLine(kind, text) {
+  return '<div class="' + kind + '"><span class="t">[' + stamp() + ']</span> ' + esc(text) + '</div>';
+}
+
+// ── 调用 PowerShell 核心脚本 ────────────────────────────────────────────────
+function runAction(action, target, logName) {
+  var args = '-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' +
+    CFG.ps1 + '" -Action ' + action;
+  if (target) args += ' -Target ' + target;
+  if (logName) args += ' -LogName ' + logName + ' -Tail 200';
+  args += ' -OutFile "' + CFG.result + '"';
+
+  if (fileExists(CFG.result)) {
+    try { new ActiveXObject('Scripting.FileSystemObject').DeleteFile(CFG.result); } catch (e) {}
+  }
+
+  var shell = new ActiveXObject('WScript.Shell');
+  var h = shell.Run('powershell.exe ' + args, 0, true);
+
+  if (!fileExists(CFG.result)) {
+    return { ok: false, exitCode: h, info: ['PowerShell 没有写出结果文件（exit ' + h + '）。看 tools/runtime/launcher.log。'] };
+  }
+  return JSON.parse(readText(CFG.result));
+}
+
+function showBusy(text) {
+  busy = true;
+  document.getElementById('busyText').innerHTML = esc(text);
+  document.getElementById('busy').style.display = 'block';
+  toggleButtons(true);
+}
+
+function hideBusy() {
+  busy = false;
+  document.getElementById('busy').style.display = 'none';
+  toggleButtons(false);
+}
+
+function toggleButtons(disabled) {
+  var ids = ['btnStart', 'btnRestart', 'btnStop'];
+  for (var i = 0; i < ids.length; i++) {
+    var el = document.getElementById(ids[i]);
+    if (el) el.disabled = disabled;
+  }
+}
+
+// ── 渲染 ────────────────────────────────────────────────────────────────────
+function render(status) {
+  if (!status || !status.services) return;
+
+  var healthEl = document.getElementById('health');
+  var text = { healthy: '全部正常', partial: '部分运行', down: '未运行' }[status.health] || '未知';
+  healthEl.className = 'health ' + (status.health || '');
+  healthEl.innerHTML = '总体状态：' + text + ' · ' + esc(status.time);
+
+  var html = '';
+  for (var i = 0; i < CFG.services.length; i++) {
+    var def = CFG.services[i];
+    if (status.runtime === 'direct' && def.id === 'dsh') continue;
+    var svc = status.services[def.id] || {};
+    var cls = svc.running ? 'running' : 'stopped';
+    var stateText = svc.running ? '运行中' : '未运行';
+
+    if (def.id === 'bridge' && svc.running) {
+      if (status.runtime === 'direct' && svc.connectedSnowluma) stateText = '运行中 · QQ 与直连 AI 正常';
+      else if (status.runtime === 'direct') { stateText = '运行中 · QQ 侧未连接'; cls = 'error'; }
+      else if (svc.connectedSnowluma && svc.connectedDsh) stateText = '运行中 · 双连接正常';
+      else if (svc.connectedDsh) stateText = '运行中 · QQ 侧未连接';
+      else if (svc.connectedSnowluma) stateText = '运行中 · DSH 未就绪';
+      else { stateText = '运行中 · 连接待确认'; cls = 'error'; }
+    }
+    if (def.id === 'snowluma' && svc.running && !(status.services.bridge && status.services.bridge.connectedSnowluma)) {
+      // 网关自己起来但桥接没连上，不算错，只是提示
+    }
+
+    var detail = svc.detail || def.detail;
+    var pidText = svc.pid ? (' · PID ' + svc.pid) : '';
+
+    html += '<div class="card ' + cls + '">' +
+      '<span class="dot"></span>' +
+      '<div class="meta">' +
+        '<div class="line1"><span class="name">' + esc(def.name) + '</span>' +
+          '<span class="role">' + esc(def.role) + pidText + '</span></div>' +
+        '<div class="line2">' + esc(detail) + '</div>' +
+      '</div>' +
+      '<span class="state">' + esc(stateText) + '</span>' +
+      '<span class="ops">' +
+        '<button onclick="return act(\'start\',\'' + def.id + '\')">启动</button>' +
+        '<button onclick="return act(\'restart\',\'' + def.id + '\')">重启</button>' +
+        '<button onclick="return act(\'stop\',\'' + def.id + '\')">停止</button>' +
+      '</span>' +
+    '</div>';
+  }
+  document.getElementById('services').innerHTML = html;
+
+  var dshLink = document.querySelector ? null : null;
+  var links = document.getElementsByTagName('a');
+  if (links.length) links[0].style.display = status.runtime === 'direct' ? 'none' : '';
+  if (links.length && status.dshUrl) links[0].href = '#';
+  window.__dshUrl = status.dshUrl || '';
+  document.getElementById('clock').innerHTML = '更新于 ' + esc(status.time);
+}
+
+function refreshStatus(silent) {
+  if (busy || refreshing) return false;
+  refreshing = true;
+  try {
+    var res = runAction('status');
+    if (res && res.services) {
+      render(res);
+      if (!silent) {
+        var lines = '<div class="ok"><span class="t">[' + stamp() + ']</span> 状态已刷新</div>';
+        setInfo(lines);
+      }
+    } else {
+      setInfo(infoLine('err', '无法读取状态：' + (res && res.info ? res.info.join(' ') : '未知错误')));
+    }
+  } catch (e) {
+    setInfo(infoLine('err', '调用核心脚本失败：' + e.message));
+  } finally {
+    refreshing = false;
+  }
+  return false;
+}
+
+// ── 动作 ────────────────────────────────────────────────────────────────────
+function act(action, target) {
+  if (busy) return false;
+  var labels = {
+    startAll: '正在一键启动（DSH → SnowLuma → 桥接）…',
+    stopAll: '正在停止桥接与 SnowLuma…',
+    restartAll: '正在全部重启…',
+    syncEndpoint: '正在同步 DSH 端口与令牌…',
+    logs: '正在读取日志…'
+  };
+  var label = labels[action] || ((target ? serviceDef(target).name : '') + ' ' + action + '…');
+  showBusy(label);
+  setInfo(infoLine('', label));
+  setTimeout(function () {
+    try {
+      var res = runAction(action, target);
+      var html = '';
+      if (res && res.info) {
+        for (var i = 0; i < res.info.length; i++) {
+          var line = res.info[i];
+          var kind = '';
+          if (line.indexOf('===') === 0) kind = 'warn';
+          if (/失败|找不到|超时|出错|警告/.test(line)) kind = 'err';
+          if (/已就绪|已连接|已启动|已停止|已同步|完成/.test(line)) kind = 'ok';
+          html += infoLine(kind, line);
+        }
+      }
+      if (res && res.services) {
+        render(res);
+        html += infoLine(res.health === 'healthy' ? 'ok' : 'warn', '当前总体状态：' + res.health);
+      }
+      setInfo(html || infoLine('', '完成，没有输出。'));
+    } catch (e) {
+      setInfo(infoLine('err', '执行失败：' + e.message));
+    } finally {
+      hideBusy();
+    }
+  }, 60);
+  return false;
+}
+
+function syncNow() { return act('syncEndpoint'); }
+
+function openUrl(url) {
+  if (!url || url === '__DSH_URL__') {
+    url = window.__dshUrl || '';
+    if (!url) {
+      setInfo(infoLine('warn', '还没有 DSH 端点信息，先点一次「刷新状态」。'));
+      return false;
+    }
+  }
+  try { new ActiveXObject('WScript.Shell').Run(url, 1, false); } catch (e) {}
+  return false;
+}
+
+// ── 日志面板 ────────────────────────────────────────────────────────────────
+function openLogs() { return showLog('bridge'); }
+
+function showLog(name) {
+  logName = name;
+  logVisible = true;
+  loadLog();
+  if (logTimer) clearInterval(logTimer);
+  logTimer = setInterval(loadLog, LOG_POLL_MS);
+  return false;
+}
+
+function closeLogs() {
+  logVisible = false;
+  if (logTimer) { clearInterval(logTimer); logTimer = null; }
+  setInfo(infoLine('', '日志面板已关闭。'));
+  return false;
+}
+
+function switchLog(name) {
+  showLog(name);
+  return false;
+}
+
+function loadLog() {
+  if (busy) return;
+  try {
+    var res = runAction('logs', null, logName);
+    var head = '<div style="margin-bottom:6px">' +
+      '<button onclick="return switchLog(\'bridge\')">桥接日志</button>' +
+      '<button onclick="return switchLog(\'qq\')">QQ 活动</button>' +
+      '<button onclick="return switchLog(\'launcher\')">启动器日志</button>' +
+      '<button onclick="return closeLogs()">关闭</button>' +
+      '<span class="t" style="margin-left:8px">' + esc(res.path) + '</span>' +
+      '</div>';
+    var body = '';
+    var lines = res.lines || [];
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      var kind = '';
+      if (/失败|error|Error|ERROR/.test(l)) kind = 'err';
+      else if (/已连接|已就绪|成功|OK/.test(l)) kind = 'ok';
+      else if (/超限|跳过|警告/.test(l)) kind = 'warn';
+      body += '<div class="' + kind + '">' + esc(l) + '</div>';
+    }
+    setInfo(head + body);
+    var box = document.getElementById('info');
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {
+    setInfo(infoLine('err', '读取日志失败：' + e.message));
+  }
+}
+
+// ── 启动 ────────────────────────────────────────────────────────────────────
+window.onload = function () {
+  document.getElementById('coreVersion').innerHTML = '核心：qq-bridge-launcher.ps1';
+  setInfo(infoLine('', '就绪。点「一键启动」会按当前运行时拉起所需服务，已运行的会跳过。'));
+  refreshStatus(false);
+  setInterval(function () {
+    var auto = document.getElementById('autoRefresh');
+    if (auto && auto.checked && !busy) refreshStatus(true);
+  }, POLL_MS);
+};
+
+window.onbeforeunload = function () {
+  if (logTimer) clearInterval(logTimer);
+};
+</script>
+</body>
+</html>
+`;
+
+const htaPath = path.join(toolsDir, 'launcher.hta');
+const htaOut = hta.replace('__CONFIG__', jsonForScript({
+  ps1: 'qq-bridge-launcher.ps1',
+  result: path.join('runtime', 'last-result.json'),
+  services: config.services,
+  ports: config.ports
+}));
+fs.writeFileSync(htaPath, htaOut, 'utf8');
+
+console.log('built:');
+console.log('  ' + htaPath);
+console.log('  ' + path.join(runtimeDir, 'init.json'));
+console.log('  ' + msgPath + '  (' + Object.keys(messages).length + ' messages)');
+console.log('  services: ' + config.services.map((s) => s.id).join(', '));
