@@ -91,6 +91,13 @@ $NodeExe     = Cfg 'nodeExe' 'D:\DSH\node\node.exe'
 $DshExe      = Cfg 'dshExe' 'D:\DSH\DSH.exe'
 $SnowLumaDir = Cfg 'snowLumaDir' 'C:\SnowLuma'
 $ComfyDir    = Cfg 'comfyDir' 'E:\comfyui'
+$ComfyState  = Join-Path $StateDir 'comfy-install.json'
+if (Test-Path $ComfyState) {
+  try {
+    $managedComfy = Get-Content $ComfyState -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($managedComfy.installDir) { $ComfyDir = [string]$managedComfy.installDir }
+  } catch {}
+}
 $SyncScript  = Cfg 'syncScript' (Join-Path $Workspace '_handoff-qq-bridge\sync-dsh-endpoint.ps1')
 $ManagerLog  = Join-Path $env:APPDATA 'DSH\manager.log'
 $LaunchOut   = Join-Path $Runtime 'launch-out.log'
@@ -577,14 +584,16 @@ function Start-ComfyService([System.Collections.ArrayList]$info) {
   }
   $py = Join-Path $ComfyDir 'python_embeded\python.exe'
   $wrapper = Join-Path $ComfyDir 'main_wrapper.py'
-  if (-not (Test-Path $py) -or -not (Test-Path $wrapper)) {
+  $mainPy = Join-Path $ComfyDir 'ComfyUI\main.py'
+  if (-not (Test-Path $py) -or ((-not (Test-Path $wrapper)) -and (-not (Test-Path $mainPy)))) {
     $null = $info.Add((T 'comfyMissing' $ComfyDir))
     return $false
   }
   $null = $info.Add((T 'comfyStarting'))
   try {
+    $entry = if (Test-Path $wrapper) { 'main_wrapper.py' } else { 'ComfyUI\main.py' }
     $proc = Start-ServiceProcess -filePath $py `
-      -arguments @('-s', '-X', 'utf8', 'main_wrapper.py', '--windows-standalone-build',
+      -arguments @('-s', '-X', 'utf8', $entry, '--windows-standalone-build',
                    '--listen', '127.0.0.1', '--disable-api-nodes', '--enable-manager') `
       -workingDirectory $ComfyDir -logName 'comfy-out'
     Remember-Pid 'comfy' ([int]$proc.Id)

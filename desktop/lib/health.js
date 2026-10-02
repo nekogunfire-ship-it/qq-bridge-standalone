@@ -236,6 +236,7 @@ export async function healthCheck(root, options = {}) {
   // 一冷一热两种状态给的动作不一样：没起来时只能"启动"（打开界面会白页），
   // 起来了才给"打开界面"。
   const comfyStartAction = { id: 'comfyStart', label: '启动出图' };
+  const comfySetupAction = { id: 'comfySetup', label: '安装环境' };
   const comfyOpenAction = { id: 'openComfy', label: '打开界面' };
   const comfyStopAction = { id: 'comfyStop', label: '停止' };
   if (comfyUp) {
@@ -248,9 +249,12 @@ export async function healthCheck(root, options = {}) {
         live: { vramTotalGb: dev?.vram_total ? Number((dev.vram_total / 1073741824).toFixed(1)) : null }
       }));
   } else {
+    const installed = options.comfyInstalled !== false;
     items.push(item('comfyui', 'ComfyUI（出图）', 'off',
-      '未运行 —— 聊天与回复不受影响；点「启动出图」会拉起它（冷启动要 30~60 秒加载底模）',
-      [comfyStartAction, { id: 'openModels', label: '打开模型目录' }], { optional: true }));
+      installed
+        ? '已安装但未运行 —— 启动后通常需 30～60 秒加载底模；聊天不受影响'
+        : '尚未安装 —— 可在「出图」页一键安装官方环境与模型；聊天不受影响',
+      installed ? [comfyStartAction, { id: 'openModels', label: '打开模型目录' }] : [comfySetupAction], { optional: true }));
   }
 
   // ── 6. 出图模型就绪度（可选）─────────────────────────────────────────────

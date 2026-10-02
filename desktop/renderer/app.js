@@ -6,6 +6,7 @@ const $ = (id) => document.getElementById(id);
 let settings = null;
 let busy = false;
 let autoTimer = null;
+let comfySetupTimer = null;
 
 // ── Toast ───────────────────────────────────────────────────────────────────
 function toast(message, kind = 'info', ms = 4200) {
@@ -46,6 +47,7 @@ const ACTION_HANDLERS = {
   // 出图服务：走自己的 IPC（它要等 30~60 秒加载底模，和主链路不是一套超时）
   comfyStart: () => runComfy('start', '启动出图'),
   comfyStop: () => runComfy('stop', '停止出图'),
+  comfySetup: () => switchView('images'),
   openComfy: async () => {
     const r = await window.desktop.openComfy();
     if (!r.ok) toast(`打开 ComfyUI 失败：${r.error}`, 'error');
@@ -406,7 +408,7 @@ function switchView(view) {
   for (const tab of document.querySelectorAll('.tab')) {
     tab.setAttribute('aria-selected', String(tab.dataset.view === view));
   }
-  const views = { overview: 'viewOverview', monitor: 'viewMonitor', settings: 'viewSettings' };
+  const views = { overview: 'viewOverview', monitor: 'viewMonitor', images: 'viewImages', settings: 'viewSettings' };
   for (const [name, id] of Object.entries(views)) {
     const el = $(id);
     if (el) el.hidden = name !== view;
@@ -415,6 +417,76 @@ function switchView(view) {
   if (view !== 'overview') $('progressBar').hidden = true;
   // 切到监测页时立刻刷一次，不用等下一个轮询周期
   if (view === 'monitor') refreshMonitor().catch(() => {});
+  if (view === 'images') {
+    refreshComfySetup().catch(() => {});
+    if (!comfySetupTimer) comfySetupTimer = setInterval(() => refreshComfySetup().catch(() => {}), 1000);
+  } else if (comfySetupTimer) {
+    clearInterval(comfySetupTimer);
+    comfySetupTimer = null;
+  }
+}
+
+function formatBytes(value) {
+  const n = Number(value) || 0;
+  if (!n) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
+  return `${v.toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
+}
+
+async function refreshComfySetup() {
+  const s = await window.desktop.comfySetupStatus();
+  const job = s.job ?? {};
+  $('comfyVariant').value = s.variant || 'nvidia';
+  if (!$('comfyInstallDir').matches(':focus')) $('comfyInstallDir').value = s.installDir || '';
+  $('comfyEnvState').textContent = s.installed ? '✓ 已安装' : '尚未安装';
+  $('comfyEnvDetail').textContent = s.installed ? `环境目录：${s.installDir}` : '需要约 10～20 GB 磁盘空间；实际大小取决于显卡版本。';
+  const model = s.models?.sdxlBase;
+  $('comfyModelState').textContent = model?.installed ? '✓ 已安装' : '尚未安装';
+  $('comfyModelDetail').textContent = model?.installed ? `模型文件：${model.filename}` : `下载体积：${model?.sizeLabel ?? '约 6.9 GB'}`;
+  $('btnComfyInstall').textContent = s.installed ? '重新安装 / 修复 ComfyUI' : '下载并安装 ComfyUI';
+  $('btnComfyModelInstall').textContent = model?.installed ? '重新下载模型' : '下载并配置模型';
+  $('btnComfyModelInstall').disabled = !s.installed || job.running;
+  $('btnComfyInstall').disabled = job.running;
+  $('btnComfyStart').disabled = !s.installed || job.running;
+  $('btnComfyModels').disabled = !s.installed;
+  $('btnComfyCancel').hidden = !job.running;
+  $('comfySetupBadge').dataset.state = job.running ? 'busy' : (s.installed && model?.installed ? 'ok' : 'off');
+  $('comfySetupBadge').textContent = job.running ? '安装进行中' : (s.installed && model?.installed ? '可以出图' : '需要配置');
+  $('comfySetupProgress').style.width = `${Math.max(0, Math.min(100, Number(job.percent) || 0))}%`;
+  $('comfySetupMessage').textContent = job.error ? `失败：${job.error}` : (job.message || '暂无任务');
+  $('comfySetupBytes').textContent = job.received ? `${formatBytes(job.received)}${job.total ? ` / ${formatBytes(job.total)}` : ''}` : '';
+}
+
+function bindComfySetup() {
+  $('btnComfyInstall').addEventListener('click', async () => {
+    const installDir = $('comfyInstallDir').value.trim();
+    if (!window.confirm(`将从 ComfyUI 官方 GitHub 下载 Windows Portable 环境。\n\n安装目录：${installDir}\n\n继续吗？`)) return;
+    const r = await window.desktop.comfyInstall({ variant: $('comfyVariant').value, installDir });
+    if (!r.ok) toast(r.error, 'error'); else toast('ComfyUI 下载已开始，可在本页查看进度', 'ok');
+    refreshComfySetup();
+  });
+  $('btnComfyModelInstall').addEventListener('click', async () => {
+    if (!$('comfyAcceptLicense').checked) { toast('请先阅读并接受模型许可证', 'warn'); return; }
+    if (!window.confirm('将从 Stability AI 官方 Hugging Face 仓库下载约 6.9 GB 的 SDXL Base 1.0。\n\n继续吗？')) return;
+    const r = await window.desktop.comfyInstallModel({ modelKey: $('comfyModel').value, acceptLicense: true });
+    if (!r.ok) toast(r.error, 'error'); else toast('模型下载已开始', 'ok');
+    refreshComfySetup();
+  });
+  $('btnComfyCancel').addEventListener('click', async () => {
+    const r = await window.desktop.comfyCancelSetup();
+    toast(r.ok ? '已请求取消下载' : r.error, r.ok ? 'warn' : 'error');
+  });
+  $('btnComfyStart').addEventListener('click', () => runComfy('start', '启动出图'));
+  $('btnComfyStop').addEventListener('click', () => runComfy('stop', '停止出图'));
+  $('btnComfyOpen').addEventListener('click', ACTION_HANDLERS.openComfy);
+  $('btnComfyModels').addEventListener('click', () => openPath('models'));
+  $('comfyLicenseLink').addEventListener('click', (event) => {
+    event.preventDefault();
+    window.desktop.openExternal('https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md');
+  });
 }
 
 // ── 纯函数来自 pure.js（单独成文件是为了能被 Node 直接单测，不用起 Electron）──
@@ -1074,6 +1146,7 @@ async function refreshOverviewEvents() {
   bindConfigTools();
   bindMonitor();
   bindRuntime();
+  bindComfySetup();
 
   try {
     const info = await window.desktop.info();

@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld('desktop', {
   comfyStart: () => ipcRenderer.invoke('comfy:start'),
   comfyStop: () => ipcRenderer.invoke('comfy:stop'),
   openComfy: () => ipcRenderer.invoke('shell:openComfy'),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  comfySetupStatus: () => ipcRenderer.invoke('comfy:setupStatus'),
+  comfyInstall: (options) => ipcRenderer.invoke('comfy:install', options || {}),
+  comfyInstallModel: (options) => ipcRenderer.invoke('comfy:installModel', options || {}),
+  comfyCancelSetup: () => ipcRenderer.invoke('comfy:cancelSetup'),
 
   // 设置（自动保存）
   getSettings: () => ipcRenderer.invoke('settings:get'),

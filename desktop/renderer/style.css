@@ -172,6 +172,39 @@ html, body {
 .panel-side { display: flex; flex-direction: column; }
 .panel-grow { display: flex; flex-direction: column; }
 
+/* ── 出图安装中心 ───────────────────────────────────────────────────── */
+#viewImages { overflow: auto; align-content: start; }
+.image-hero {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  background: linear-gradient(135deg, rgba(43, 68, 110, .96), rgba(39, 31, 78, .94));
+  border-color: #3b4d75;
+}
+.image-hero h2 { margin: 3px 0 5px; font-size: 20px; }
+.image-hero p { margin: 0; }
+.setup-badge {
+  flex: none; padding: 7px 13px; border: 1px solid var(--border); border-radius: 999px;
+  background: rgba(9, 15, 27, .42); font-size: 12px;
+}
+.setup-badge[data-state="ok"] { color: var(--ok); border-color: rgba(56, 211, 159, .5); }
+.setup-badge[data-state="busy"] { color: var(--accent); border-color: rgba(91, 157, 255, .55); }
+.setup-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.setup-card { position: relative; padding-left: 58px; overflow: visible; }
+.step-number {
+  position: absolute; left: 16px; top: 16px; width: 28px; height: 28px;
+  display: grid; place-items: center; border-radius: 9px; font-weight: 700;
+  color: #dce9ff; background: linear-gradient(145deg, #3974cf, #694bb5);
+  box-shadow: 0 5px 15px rgba(33, 76, 150, .3);
+}
+.setup-detail { min-height: 20px; overflow-wrap: anywhere; }
+.model-facts { display: flex; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
+.model-facts span { padding: 3px 8px; border-radius: 999px; background: #202b42; color: #b9c7df; font-size: 11px; }
+.license-check a { color: #8ebcff; }
+.setup-progress-panel { overflow: visible; }
+.setup-progress-track { height: 9px; overflow: hidden; border-radius: 999px; background: #101827; border: 1px solid #27334b; }
+.setup-progress-value { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3974cf, #8c64e8); transition: width .25s; }
+.setup-progress-copy { display: flex; justify-content: space-between; gap: 12px; min-height: 26px; padding: 7px 2px 2px; font-size: 12px; }
+.setup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
 .panel-head { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-bottom: 12px; }
 .panel-head.spaced { margin-top: 18px; }
 .panel-head h2 { margin: 0; font-size: 14px; font-weight: 650; letter-spacing: .25px; color: #d2ddf1; }
@@ -639,6 +672,7 @@ html, body {
   .view { height: calc(100vh - 108px); }
   .settings-grid { grid-template-columns: 1fr; }
   .settings-grid > .panel:first-child { grid-column: auto; }
+  .setup-grid { grid-template-columns: 1fr; }
 }
 
 /* 最窄窗口把活动流的会话列收起，时间和正文仍完整保留。 */

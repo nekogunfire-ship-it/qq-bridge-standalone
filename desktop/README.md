@@ -128,7 +128,7 @@ POST /api/runtime/probe   { baseUrl?, model?, apiKey? }  → {ok, latencyMs, rep
 
 ## 已知限制
 
-- **ComfyUI 与 SnowLuma 不打进安装包** —— SnowLuma 是第三方 QQ 网关，ComfyUI 光模型就有 16GB，只能检测 + 引导
+- **ComfyUI 与模型不直接打进安装包** —— 桌面应用的「出图」页可按需从官方来源下载安装，避免普通安装包膨胀数十 GB；SnowLuma 仍需单独准备
 - **AI 回复依赖 DSH 或一个 AI API** —— 桌面版会检测它、能打开它的界面，但不负责安装它；
   运行时可二选一（见上「AI 运行时」）
 - 关闭窗口 = 收进托盘（可在设置里关掉这个行为）

@@ -301,6 +301,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\restart-bridge-and-dsh
 
 群友在 QQ 里说「画个 xxx」，AI 会在**本机 ComfyUI** 出图并直接回发到群里。
 
+### 应用内一键安装
+
+桌面应用顶部新增了 **「出图」** 页，可直接完成：
+
+1. 按显卡选择 NVIDIA 新版 / NVIDIA 旧版 / AMD / Intel 官方 Windows Portable 环境；
+2. 选择安装目录并查看实时下载、解压进度，也可取消下载；
+3. 阅读并接受模型许可证后，下载 Stability AI 官方的 SDXL Base 1.0；
+4. 自动写入 `config.json` 的 ComfyUI 输出目录与 `sdxl-base` 模型预设；
+5. 在同一页启动、停止或打开 ComfyUI，并可直接打开模型目录。
+
+安装状态保存在忽略版本控制的 `state/comfy-install.json`，不会把机器路径写进公开仓库。环境与模型体积较大，下载只在用户点击并确认后开始。
+
 链路：
 
 ```
@@ -388,15 +400,7 @@ AI 通过 `qq_draw_image` 的 `model` 参数选择预设；群友也能直接说
 - 单张上限 32MB（发送侧）、16MB（取图侧），避免把超大图塞进 QQ 消息。
 - ComfyUI 只是纯计算，工具不暴露任意文件读取能力；返回给 AI 的只有 `outputDir` 内的路径。
 
-ComfyUI 需要**另外启动**（桥接不会自动拉起它）。要放进一键启动流程的话，把 `E:\comfyui\run_DSH.bat` 加进 `tools/qq-oneclick-start.ps1` 即可。
-
-> **注意 `E:\comfyui\run_DSH.bat` 的两个编码硬要求**（2026-09-25 实际踩到过）：
-> 该文件必须**纯 ASCII + CRLF**。它一度是无 BOM 的 UTF-8 中文 **且只有 LF 换行**，
-> 于是 cmd.exe 把多行并成一行读，整份脚本被撕碎、ComfyUI 完全起不来，报出一堆
-> `'_wrapper.py" --windows-standalone-build...' 不是内部或外部命令`。
-> 中文说明要放就放 `main_wrapper.py`（Python 读 UTF-8 无问题），或改放别的 `.ps1`。
-> 校验/修复工具：`node tools\fix-bat-line-endings.mjs --check <文件>`（去掉 `--check` 即转换）。
-> 修复前的原始文件留档在 `docs\comfyui\run_DSH.bat.broken-original`。
+应用安装的标准 Portable 环境由启动器直接运行 `ComfyUI/main.py`；旧环境若带有 `main_wrapper.py` 仍保持兼容。ComfyUI 是可选服务，启动失败不会阻止聊天链路。
 
 新增 MCP 工具后需要让 DSH 重新加载 MCP：**重启 DSH**。
 

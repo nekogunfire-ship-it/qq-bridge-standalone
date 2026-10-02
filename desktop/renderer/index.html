@@ -26,6 +26,7 @@
     <nav class="tabs" id="tabs">
       <button class="tab" data-view="overview" aria-selected="true" title="服务状态、当前模式、最近事件">总览</button>
       <button class="tab" data-view="monitor" aria-selected="false" title="QQ 里正在发生什么：会话唤醒状态与活动流">监测</button>
+      <button class="tab" data-view="images" aria-selected="false" title="安装并管理 ComfyUI 与图片生成模型">出图</button>
       <button class="tab" data-view="settings" aria-selected="false" title="偏好、看门狗、配置、应用与卸载">设置</button>
     </nav>
 
@@ -142,7 +143,74 @@
     </section>
   </main>
 
-  <!-- ═══════════════ ③ 设置：偏好 / 配置 / 应用 / 危险区 ═══════════════ -->
+  <!-- ═══════════════ ③ 出图：环境与模型的一体化安装 ═══════════════ -->
+  <main id="viewImages" class="view" hidden>
+    <section class="image-hero panel">
+      <div>
+        <span class="guide-kicker">本地图片生成</span>
+        <h2>安装 ComfyUI 与图片模型</h2>
+        <p class="muted">按顺序完成环境和模型两步即可出图。文件较大，下载过程中可以继续使用聊天功能。</p>
+      </div>
+      <span id="comfySetupBadge" class="setup-badge" data-state="off">正在检查…</span>
+    </section>
+
+    <div class="setup-grid">
+      <section class="panel setup-card">
+        <div class="step-number">1</div>
+        <div class="panel-head"><h2>ComfyUI 运行环境</h2><span id="comfyEnvState" class="muted small">检查中…</span></div>
+        <p class="muted small">下载 ComfyUI 官方 Windows Portable 包，独立安装，不污染系统 Python。</p>
+        <label class="field field-stack">
+          <span class="field-label">显卡类型</span>
+          <select id="comfyVariant">
+            <option value="nvidia">NVIDIA 20 系及更新</option>
+            <option value="nvidiaLegacy">NVIDIA 10 系及更早</option>
+            <option value="amd">AMD（ROCm）</option>
+            <option value="intel">Intel XPU</option>
+          </select>
+        </label>
+        <label class="field field-stack">
+          <span class="field-label">安装目录</span>
+          <input id="comfyInstallDir" type="text" spellcheck="false" />
+        </label>
+        <p id="comfyEnvDetail" class="setup-detail muted small"></p>
+        <button id="btnComfyInstall" class="btn btn-block btn-primary">下载并安装 ComfyUI</button>
+      </section>
+
+      <section class="panel setup-card">
+        <div class="step-number">2</div>
+        <div class="panel-head"><h2>图片生成模型</h2><span id="comfyModelState" class="muted small">检查中…</span></div>
+        <label class="field field-stack">
+          <span class="field-label">推荐模型</span>
+          <select id="comfyModel"><option value="sdxlBase">Stable Diffusion XL Base 1.0</option></select>
+        </label>
+        <div class="model-facts">
+          <span>约 6.9 GB</span><span>1024×1024</span><span>Open RAIL++-M</span>
+        </div>
+        <p class="muted small">模型来源：Stability AI 官方 Hugging Face 仓库。安装后会自动写入出图预设并启用 ComfyUI。</p>
+        <label class="field field-check license-check">
+          <input id="comfyAcceptLicense" type="checkbox" />
+          <span>我已阅读并接受 <a href="#" id="comfyLicenseLink">模型许可证</a></span>
+        </label>
+        <p id="comfyModelDetail" class="setup-detail muted small"></p>
+        <button id="btnComfyModelInstall" class="btn btn-block btn-primary">下载并配置模型</button>
+      </section>
+    </div>
+
+    <section class="panel setup-progress-panel">
+      <div class="panel-head"><h2>安装进度</h2><span class="grow"></span><button id="btnComfyCancel" class="btn btn-small btn-danger" hidden>取消下载</button></div>
+      <div class="setup-progress-track"><div id="comfySetupProgress" class="setup-progress-value"></div></div>
+      <div class="setup-progress-copy"><span id="comfySetupMessage">暂无任务</span><span id="comfySetupBytes" class="mono muted"></span></div>
+      <div class="setup-actions">
+        <button id="btnComfyStart" class="btn btn-primary">▶ 启动出图服务</button>
+        <button id="btnComfyStop" class="btn">■ 停止</button>
+        <button id="btnComfyOpen" class="btn">打开 ComfyUI</button>
+        <button id="btnComfyModels" class="btn">打开模型目录</button>
+      </div>
+      <p class="muted small">首次启动需要加载模型，通常需 30～60 秒。聊天与回复不依赖 ComfyUI。</p>
+    </section>
+  </main>
+
+  <!-- ═══════════════ ④ 设置：偏好 / 配置 / 应用 / 危险区 ═══════════════ -->
   <main id="viewSettings" class="view" hidden>
     <div class="settings-grid">
       <!-- ── AI 运行时：dsh / direct ────────────────────────────────────── -->

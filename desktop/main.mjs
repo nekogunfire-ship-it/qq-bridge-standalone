@@ -15,6 +15,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { healthCheck, readConfig, readConsoleToken, probePort } from './lib/health.js';
 import { launcherStatus, launcherDiagnose, launcherStartAll, launcherStopAll, launcherRestartAll, launcherRestartBridgeOnly, launcherStartComfy, launcherStopComfy } from './lib/launcher.js';
+import { comfySetupStatus, startComfyInstall, startModelInstall, cancelComfySetup, readComfyInstall } from './lib/comfy-manager.js';
 import { loadSettings, saveSettings, SETTINGS_PATH } from './lib/settings.js';
 import { startLifecycleRun, readLifecycleLog } from './lib/lifecycle-log.js';
 import { readDshRestartLog } from './lib/dsh-watch.js';
@@ -30,6 +31,10 @@ const ROOT = path.resolve(__dirname, '..');
 //   comfyDir → tools/services.json（启动器也用同一份，改一处全生效）
 //   host     → config.json 的 comfy.host（桥接出图用的地址，保持一致）
 function readComfyDir() {
+  try {
+    const managed = readComfyInstall(ROOT)?.installDir;
+    if (managed) return managed;
+  } catch {}
   try {
     const services = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'services.json'), 'utf8'));
     if (services?.comfyDir) return services.comfyDir;
@@ -544,7 +549,7 @@ function registerIpc() {
     busy: busyAction
   }));
 
-  ipcMain.handle('health:check', async () => healthCheck(ROOT, {}));
+  ipcMain.handle('health:check', async () => healthCheck(ROOT, { comfyInstalled: comfySetupStatus(ROOT).installed }));
 
   ipcMain.handle('launcher:status', async () => launcherStatus(ROOT));
   ipcMain.handle('launcher:diagnose', async () => launcherDiagnose(ROOT));
@@ -573,6 +578,10 @@ function registerIpc() {
     if (busyAction) return { ok: false, error: `正在执行「${busyAction}」，请稍候` };
     return runLifecycle('comfyStop');
   });
+  ipcMain.handle('comfy:setupStatus', () => comfySetupStatus(ROOT));
+  ipcMain.handle('comfy:install', (_evt, options) => startComfyInstall(ROOT, options ?? {}));
+  ipcMain.handle('comfy:installModel', (_evt, options) => startModelInstall(ROOT, options ?? {}));
+  ipcMain.handle('comfy:cancelSetup', () => cancelComfySetup());
 
   ipcMain.handle('settings:get', () => loadSettings());
   ipcMain.handle('settings:set', (_evt, patch) => {
@@ -621,6 +630,15 @@ function registerIpc() {
     const url = readComfyHost();
     await shell.openExternal(url);
     return { ok: true, url };
+  });
+  ipcMain.handle('shell:openExternal', async (_evt, rawUrl) => {
+    try {
+      const url = new URL(String(rawUrl));
+      const allowed = new Set(['github.com', 'docs.comfy.org', 'huggingface.co']);
+      if (url.protocol !== 'https:' || !allowed.has(url.hostname)) return { ok: false, error: '只允许打开官方 HTTPS 文档链接' };
+      await shell.openExternal(url.href);
+      return { ok: true, url: url.href };
+    } catch (error) { return { ok: false, error: error?.message ?? String(error) }; }
   });
 
   ipcMain.handle('config:createFromTemplate', async () => {
@@ -1203,7 +1221,7 @@ async function runLifecycle(action, { silent = false } = {}) {
     run.mark(result.timedOut ? '超时放弃' : 'launcher 已返回');
 
     // 体检也加上限，避免它把整个动作拖住
-    const health = await withTimeout(healthCheck(ROOT, {}), 30_000, '体检');
+    const health = await withTimeout(healthCheck(ROOT, { comfyInstalled: comfySetupStatus(ROOT).installed }), 30_000, '体检');
     run.mark('体检完成');
     if (health && !health.error) broadcast('health:changed', health);
 
@@ -1239,7 +1257,7 @@ app.whenReady().then(() => {
 
   // 启动后自动检查一次（渲染层也会主动请求，这里推一份让 UI 立即有数据）
   setTimeout(() => {
-    healthCheck(ROOT, {}).then((h) => broadcast('health:changed', h)).catch(() => {});
+    healthCheck(ROOT, { comfyInstalled: comfySetupStatus(ROOT).installed }).then((h) => broadcast('health:changed', h)).catch(() => {});
   }, 1200);
 });
 
