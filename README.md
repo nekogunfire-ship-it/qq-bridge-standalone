@@ -91,6 +91,22 @@ QQ 消息 ──► SnowLuma（OneBot v11 WS）──► 本桥接进程 ──�
 
 ## 安装与配置
 
+### 推荐：使用 Windows 安装程序
+
+从 [Releases](https://github.com/nekogunfire-ship-it/qq-bridge-standalone/releases/latest) 下载 `QQ-Bridge-Standalone-Setup-*.exe`。安装程序会先显示安装计划，再由用户决定是否安装下列可选组件：
+
+| 安装选项 | 说明 |
+| --- | --- |
+| **DSH 兼容环境** | 需要连接 DeepSeek Harness 时选择；不选则保留完全脱离 DSH 的 Direct Runtime 运行方式。 |
+| **ComfyUI 官方 Portable** | 安装本地图片生成环境；可根据显卡选择 NVIDIA 新版、NVIDIA 旧版、AMD 或 Intel 方案。 |
+| **SDXL Base 1.0** | 可选图片生成模型，下载量约 **6.9 GB**；安装前会显示并要求明确接受 Open RAIL++-M 许可证。 |
+
+未选择的组件不会下载。QQ Bridge 核心安装与可选组件相互隔离：ComfyUI 或模型下载失败不会破坏桥接程序，之后可在桌面应用的 **「出图」** 页面重试、启动或管理环境。
+
+> 安装程序目前未做商业代码签名，Windows 可能显示“未知发布者”。Release 同时提供 `SHA256SUMS-*.json`，建议下载后核对文件摘要。
+
+### 手动安装
+
 ```bash
 npm install        # 安装依赖（postinstall 会自动修补 @snowluma/sdk 的 ESM 打包 bug）
 ```

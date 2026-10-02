@@ -58,6 +58,22 @@ QQ messages ──► SnowLuma (OneBot v11 WS) ──► qq-bridge ──► DSH
 
 ## Quick Start
 
+### Recommended: Windows installer
+
+Download `QQ-Bridge-Standalone-Setup-*.exe` from the [latest release](https://github.com/nekogunfire-ship-it/qq-bridge-standalone/releases/latest). The installer displays its plan first and lets you choose the following optional components:
+
+| Option | Description |
+| --- | --- |
+| **DSH compatibility environment** | Select this when connecting to DeepSeek Harness. Leave it unchecked to use the fully DSH-independent Direct Runtime. |
+| **Official ComfyUI Portable** | Installs the local image-generation environment, with NVIDIA current, NVIDIA legacy, AMD, and Intel variants. |
+| **SDXL Base 1.0** | Optional image model with an approximately **6.9 GB** download. Installation requires explicit acceptance of the Open RAIL++-M license. |
+
+Unselected components are not downloaded. Optional setup is isolated from the QQ Bridge core installation: a failed ComfyUI or model download does not break the bridge and can be retried later from the desktop application's **Image Generation** page.
+
+> The installer is not commercially code-signed yet, so Windows may show an “Unknown publisher” warning. Each release includes a `SHA256SUMS-*.json` manifest for integrity verification.
+
+### Manual installation
+
 ```bash
 npm install        # postinstall automatically patches the @snowluma/sdk ESM packaging bug
 ```
