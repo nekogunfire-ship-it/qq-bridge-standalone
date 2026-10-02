@@ -187,7 +187,7 @@ html, body {
 }
 .setup-badge[data-state="ok"] { color: var(--ok); border-color: rgba(56, 211, 159, .5); }
 .setup-badge[data-state="busy"] { color: var(--accent); border-color: rgba(91, 157, 255, .55); }
-.setup-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.setup-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); }
 .setup-card { position: relative; padding-left: 58px; overflow: visible; }
 .step-number {
   position: absolute; left: 16px; top: 16px; width: 28px; height: 28px;
@@ -645,6 +645,7 @@ html, body {
   .brand { min-width: 178px; }
   .titlebar { gap: 10px; padding-inline: 14px; }
   .actions .btn { padding-inline: 10px; }
+  .setup-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 1040px) {

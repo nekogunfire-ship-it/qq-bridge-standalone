@@ -68,7 +68,9 @@ Download `QQ-Bridge-Standalone-Setup-*.exe` from the [latest release](https://gi
 | **Official ComfyUI Portable** | Installs the local image-generation environment, with NVIDIA current, NVIDIA legacy, AMD, and Intel variants. |
 | **SDXL Base 1.0** | Optional image model with an approximately **6.9 GB** download. Installation requires explicit acceptance of the Open RAIL++-M license. |
 
-Unselected components are not downloaded. Optional setup is isolated from the QQ Bridge core installation: a failed ComfyUI or model download does not break the bridge and can be retried later from the desktop application's **Image Generation** page.
+Unselected components are not downloaded. Optional setup is isolated from the QQ Bridge core installation: a failed ComfyUI or model download does not break the bridge and can be retried later from the desktop application's **Extensions** page.
+
+These choices are not limited to first-time setup. Open **Extensions → Environment and Model Installation Center** in the desktop app at any time to install or repair DSH compatibility, download the correct ComfyUI build for your GPU, or download SDXL after accepting its license. You can safely install only the core application first and add extensions later.
 
 > The installer is not commercially code-signed yet, so Windows may show an “Unknown publisher” warning. Each release includes a `SHA256SUMS-*.json` manifest for integrity verification.
 

@@ -437,8 +437,15 @@ function formatBytes(value) {
 }
 
 async function refreshComfySetup() {
-  const s = await window.desktop.comfySetupStatus();
+  const [s, dsh] = await Promise.all([
+    window.desktop.comfySetupStatus(),
+    window.desktop.dshSetupStatus()
+  ]);
   const job = s.job ?? {};
+  $('dshSetupState').textContent = dsh.running ? '正在配置…' : (dsh.installed ? '✓ 已安装' : '尚未安装');
+  $('dshSetupDetail').textContent = dsh.detail || '';
+  $('btnDshSetup').textContent = dsh.installed ? '重新安装 / 修复 DSH 扩展' : '安装 DSH 兼容环境';
+  $('btnDshSetup').disabled = Boolean(dsh.running);
   $('comfyVariant').value = s.variant || 'nvidia';
   if (!$('comfyInstallDir').matches(':focus')) $('comfyInstallDir').value = s.installDir || '';
   $('comfyEnvState').textContent = s.installed ? '✓ 已安装' : '尚未安装';
@@ -461,6 +468,18 @@ async function refreshComfySetup() {
 }
 
 function bindComfySetup() {
+  $('btnDshSetup').addEventListener('click', async () => {
+    if (!window.confirm('将为现有 DSH 安装或修复 QQ Bridge preset、MCP 工具与控制台扩展。\n\n完成后需要重启 DSH。Direct Runtime 用户不需要此项。\n\n继续吗？')) return;
+    $('btnDshSetup').disabled = true;
+    $('dshSetupState').textContent = '正在配置…';
+    const r = await window.desktop.dshInstallCompatibility();
+    if (r.ok) {
+      toast('DSH 兼容环境已配置，请重启 DSH 使扩展生效', 'ok');
+    } else {
+      toast(`DSH 配置失败：${r.error}`, 'error');
+    }
+    refreshComfySetup();
+  });
   $('btnComfyInstall').addEventListener('click', async () => {
     const installDir = $('comfyInstallDir').value.trim();
     if (!window.confirm(`将从 ComfyUI 官方 GitHub 下载 Windows Portable 环境。\n\n安装目录：${installDir}\n\n继续吗？`)) return;

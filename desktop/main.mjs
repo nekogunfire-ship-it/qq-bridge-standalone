@@ -50,6 +50,47 @@ function readComfyHost() {
   return 'http://127.0.0.1:8188';
 }
 const CONSOLE_URL = 'http://127.0.0.1:3100/';
+let dshSetupRunning = false;
+
+function dshSetupStatus() {
+  const dshHome = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
+  const preset = path.join(dshHome, '.agent-presets', 'qq-chat', 'agent.cordis.yml');
+  const patch = path.join(dshHome, 'profiles', 'web', 'cordis.patch.yml');
+  let mcpInstalled = false;
+  try { mcpInstalled = fs.readFileSync(patch, 'utf8').includes('# === qq-bridge MCP BEGIN ==='); } catch {}
+  return {
+    installed: fs.existsSync(preset) && mcpInstalled,
+    running: dshSetupRunning,
+    dshHome,
+    detail: fs.existsSync(dshHome)
+      ? '检测到 DSH；可安装或修复 QQ Bridge 的 preset、MCP 与控制台扩展。'
+      : '尚未检测到 DSH。你仍可使用 Direct Runtime；安装 DSH 后再回到这里配置。'
+  };
+}
+
+function runDshCompatibilitySetup() {
+  if (dshSetupRunning) return Promise.resolve({ ok: false, error: 'DSH 扩展配置正在进行中' });
+  const script = path.join(ROOT, 'scripts', 'setup-dsh.mjs');
+  if (!fs.existsSync(script)) return Promise.resolve({ ok: false, error: '找不到 scripts/setup-dsh.mjs' });
+  dshSetupRunning = true;
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [script, 'web'], { cwd: ROOT, windowsHide: true });
+    let output = '';
+    const collect = (chunk) => { output = `${output}${chunk}`.slice(-12000); };
+    child.stdout.on('data', collect);
+    child.stderr.on('data', collect);
+    child.on('error', (error) => {
+      dshSetupRunning = false;
+      resolve({ ok: false, error: error.message, output });
+    });
+    child.on('close', (code) => {
+      dshSetupRunning = false;
+      resolve(code === 0
+        ? { ok: true, output, restartRequired: true }
+        : { ok: false, error: `安装进程退出码 ${code}`, output });
+    });
+  });
+}
 
 // ── 启动前的 Chromium 开关（必须在 app ready 之前设置）────────────────────────
 //
@@ -582,6 +623,8 @@ function registerIpc() {
   ipcMain.handle('comfy:install', (_evt, options) => startComfyInstall(ROOT, options ?? {}));
   ipcMain.handle('comfy:installModel', (_evt, options) => startModelInstall(ROOT, options ?? {}));
   ipcMain.handle('comfy:cancelSetup', () => cancelComfySetup());
+  ipcMain.handle('dsh:setupStatus', () => dshSetupStatus());
+  ipcMain.handle('dsh:installCompatibility', () => runDshCompatibilitySetup());
 
   ipcMain.handle('settings:get', () => loadSettings());
   ipcMain.handle('settings:set', (_evt, patch) => {

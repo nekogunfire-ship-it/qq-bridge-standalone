@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('desktop', {
   lifecycle: (action) => ipcRenderer.invoke('lifecycle:run', action),
   lifecycleLog: () => ipcRenderer.invoke('lifecycle:log'),
   dshRestartLog: () => ipcRenderer.invoke('dsh:restartLog'),
+  dshSetupStatus: () => ipcRenderer.invoke('dsh:setupStatus'),
+  dshInstallCompatibility: () => ipcRenderer.invoke('dsh:installCompatibility'),
   openConsoleWindow: () => ipcRenderer.invoke('console:openWindow'),
 
   // 出图服务（ComfyUI，可选）：单独一对动作 + 打开它的网页界面

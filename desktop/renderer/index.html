@@ -26,7 +26,7 @@
     <nav class="tabs" id="tabs">
       <button class="tab" data-view="overview" aria-selected="true" title="服务状态、当前模式、最近事件">总览</button>
       <button class="tab" data-view="monitor" aria-selected="false" title="QQ 里正在发生什么：会话唤醒状态与活动流">监测</button>
-      <button class="tab" data-view="images" aria-selected="false" title="安装并管理 ComfyUI 与图片生成模型">出图</button>
+      <button class="tab" data-view="images" aria-selected="false" title="按需安装 DSH、ComfyUI 与图片生成模型">扩展</button>
       <button class="tab" data-view="settings" aria-selected="false" title="偏好、看门狗、配置、应用与卸载">设置</button>
     </nav>
 
@@ -143,13 +143,13 @@
     </section>
   </main>
 
-  <!-- ═══════════════ ③ 出图：环境与模型的一体化安装 ═══════════════ -->
+  <!-- ═══════════════ ③ 扩展安装：DSH / ComfyUI / 图片模型 ═══════════════ -->
   <main id="viewImages" class="view" hidden>
     <section class="image-hero panel">
       <div>
-        <span class="guide-kicker">本地图片生成</span>
-        <h2>安装 ComfyUI 与图片模型</h2>
-        <p class="muted">按顺序完成环境和模型两步即可出图。文件较大，下载过程中可以继续使用聊天功能。</p>
+        <span class="guide-kicker">按需扩展</span>
+        <h2>环境与模型安装中心</h2>
+        <p class="muted">首次安装时可以跳过，之后随时在这里选择 DSH、ComfyUI 和图片模型。未点击的组件不会下载。</p>
       </div>
       <span id="comfySetupBadge" class="setup-badge" data-state="off">正在检查…</span>
     </section>
@@ -157,6 +157,15 @@
     <div class="setup-grid">
       <section class="panel setup-card">
         <div class="step-number">1</div>
+        <div class="panel-head"><h2>DSH 兼容环境</h2><span id="dshSetupState" class="muted small">检查中…</span></div>
+        <p class="muted small">可选。为现有 DeepSeek Harness 安装 QQ Bridge preset、MCP 工具和控制台扩展；使用 Direct Runtime 时无需安装。</p>
+        <div class="model-facts"><span>可选</span><span>现有 DSH</span><span>需要重启 DSH</span></div>
+        <p id="dshSetupDetail" class="setup-detail muted small"></p>
+        <button id="btnDshSetup" class="btn btn-block">安装 / 修复 DSH 兼容环境</button>
+      </section>
+
+      <section class="panel setup-card">
+        <div class="step-number">2</div>
         <div class="panel-head"><h2>ComfyUI 运行环境</h2><span id="comfyEnvState" class="muted small">检查中…</span></div>
         <p class="muted small">下载 ComfyUI 官方 Windows Portable 包，独立安装，不污染系统 Python。</p>
         <label class="field field-stack">
@@ -177,7 +186,7 @@
       </section>
 
       <section class="panel setup-card">
-        <div class="step-number">2</div>
+        <div class="step-number">3</div>
         <div class="panel-head"><h2>图片生成模型</h2><span id="comfyModelState" class="muted small">检查中…</span></div>
         <label class="field field-stack">
           <span class="field-label">推荐模型</span>
