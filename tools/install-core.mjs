@@ -315,8 +315,15 @@ function execute(p, log = console.log) {
       rr.status === 0
         ? `npm install 完成${omitOptional ? '（未安装 DSH 的 SDK）' : '（含 DSH 的 SDK）'}`
         : `npm install 失败（退出码 ${rr.status}）`);
+    const desktopResult = spawnSync('cmd.exe', [
+      '/c',
+      `cd /d "${path.join(p.target, 'desktop')}" && npm install --no-audit --no-fund`
+    ], { windowsHide: true });
+    rec('安装桌面运行环境', desktopResult.status === 0,
+      desktopResult.status === 0 ? 'Electron 桌面运行环境安装完成' : `desktop npm install 失败（退出码 ${desktopResult.status}）`);
   } else {
     rec('安装依赖', true, '已按 --skip-npm 跳过');
+    rec('安装桌面运行环境', true, '已按 --skip-npm 跳过');
   }
 
   // 4) 快捷方式

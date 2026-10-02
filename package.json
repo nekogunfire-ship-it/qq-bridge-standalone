@@ -1,6 +1,6 @@
 {
   "name": "qq-bridge",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "private": true,
   "description": "Bridge between SnowLuma (OneBot v11 / QQ) and DeepSeek Harness Web API: QQ messages become DSH agent prompts, agent replies go back to QQ. Targets the DSH Cookie-auth / slash-RPC / remote.mux protocol generation, so it deliberately names no DSH version here.",
   "author": "nekogunfire-ship-it",
@@ -40,6 +40,7 @@
     "package:plan": "node tools/package-dist.mjs --plan",
     "package": "node tools/package-dist.mjs --redact",
     "package:raw": "node tools/package-dist.mjs",
+    "package:installer": "node tools/build-windows-installer.mjs",
     "test:package": "node scripts/test-package-dist.mjs",
     "setup": "node tools/setup-wizard.mjs",
     "setup:check": "node tools/setup-wizard.mjs --check",
