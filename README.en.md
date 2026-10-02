@@ -1,6 +1,21 @@
 # QQ ↔ DeepSeek Harness Bridge (qq-bridge)
 
-Original author and maintainer: [@nekogunfire-ship-it](https://github.com/nekogunfire-ship-it)
+> [!IMPORTANT]
+> **Upstream attribution and original work in this repository**
+>
+> This project references and builds upon the bridge foundation from [Derpyu520/qq-bridge](https://github.com/Derpyu520/qq-bridge). Credit goes to that project for the original QQ, SnowLuma, and DeepSeek Harness integration foundation.
+>
+> **The following major parts were independently designed and implemented in this repository by [@nekogunfire-ship-it](https://github.com/nekogunfire-ship-it):**
+>
+> - a Direct AI Runtime that operates without DSH, including model probing, hot switching, and standalone configuration;
+> - the redesigned desktop UI, status guidance, actionable diagnostics, and runtime configuration experience;
+> - optimized session and tool-call logic, shared runtime utilities, and code simplification;
+> - API-key isolation, log masking, privacy scanning, secure packaging, and release sanitization;
+> - automated verification for standalone operation, desktop wiring, UI behavior, MCP tools, security, and release packages.
+>
+> The upstream foundation and the original additions in this repository retain their respective attribution. Third-party dependencies remain subject to their own licenses.
+
+Current version author and maintainer: [@nekogunfire-ship-it](https://github.com/nekogunfire-ship-it)
 
 > Connect QQ messages to DeepSeek Harness (DSH) agents: QQ friends/groups become DSH conversations, and agent replies (including questions and tool approvals) are sent back to QQ.
 

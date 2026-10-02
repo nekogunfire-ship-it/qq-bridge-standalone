@@ -2,7 +2,22 @@
 
 **English**: [README.en.md](README.en.md) | **中文**: [README.md](README.md)
 
-原创作者与维护者：[@nekogunfire-ship-it](https://github.com/nekogunfire-ship-it)
+> [!IMPORTANT]
+> **上游引用与原创改进说明**
+>
+> 本项目引用并基于 [Derpyu520/qq-bridge](https://github.com/Derpyu520/qq-bridge) 的桥接方案继续开发。感谢原项目提供的 QQ、SnowLuma 与 DeepSeek Harness 集成基础。
+>
+> **本仓库由 [@nekogunfire-ship-it](https://github.com/nekogunfire-ship-it) 原创设计与实现的重点部分：**
+>
+> - 完全脱离 DSH 也能运行的 Direct AI Runtime，以及对应的模型探测、热切换和独立配置逻辑；
+> - 桌面图形界面的整体重构、状态引导、故障提示和运行时配置体验；
+> - 核心会话与工具调用逻辑优化、公共运行时工具抽取及代码精简；
+> - 配置密钥隔离、日志遮罩、隐私扫描、安全打包和发布脱敏流程；
+> - 独立运行、桌面端、UI、MCP、安全与发行包的自动化验证体系。
+>
+> 上游基础与本仓库原创改进的归属分别按上述说明认定；第三方依赖仍遵循各自许可证。
+
+当前版本作者与维护者：[@nekogunfire-ship-it](https://github.com/nekogunfire-ship-it)
 
 > 📘 详细内外核说明书见 **[docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md)**（架构、数据流、配置全解、调试与改进指南）。
 >
