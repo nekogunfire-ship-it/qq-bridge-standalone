@@ -99,6 +99,21 @@
       </div>
       <pre id="diagnoseOut" class="console-out">点「运行诊断」查看详情（等价于 restart-status / 诊断脚本的输出）。</pre>
     </section>
+
+    <section class="panel billing-panel">
+      <div class="panel-head"><h2>API 计费</h2><span id="billingUpdated" class="muted small">正在读取官网价格…</span><span class="grow"></span><button id="btnBillingRefresh" class="btn btn-small">更新官网价格</button></div>
+      <div class="billing-summary">
+        <div><span>今日预估</span><strong id="billingTodayCost">—</strong></div>
+        <div><span>累计预估</span><strong id="billingTotalCost">—</strong></div>
+        <div><span>累计请求</span><strong id="billingRequests">0</strong></div>
+      </div>
+      <div class="billing-tokens muted small">
+        <span>输入 <b id="billingInputTokens">0</b></span><span>输出 <b id="billingOutputTokens">0</b></span><span>缓存 <b id="billingCachedTokens">0</b></span><span>总计 <b id="billingTotalTokens">0</b></span>
+      </div>
+      <div id="billingRates" class="model-facts"><span>等待官方定价</span></div>
+      <p id="billingSource" class="muted small">自动按当前模型从官网更新；官网不可用时使用最近一次缓存。</p>
+      <p class="muted small">价格按当前时段估算历史 Token，可能与服务商最终账单存在差异；DSH 模式暂不计入。</p>
+    </section>
   </main>
 
   <!-- ═══════════════ ② 监测：QQ 里正在发生什么 ═══════════════ -->
@@ -364,28 +379,6 @@
           <input type="checkbox" id="setTray" />
           <span>关闭窗口时最小化到托盘</span>
         </label>
-      </section>
-
-      <section class="panel billing-panel">
-        <div class="panel-head"><h2>API 计费</h2><span id="billingUpdated" class="muted small">等待用量数据</span></div>
-        <div class="billing-summary">
-          <div><span>今日预估</span><strong id="billingTodayCost">—</strong></div>
-          <div><span>累计预估</span><strong id="billingTotalCost">—</strong></div>
-          <div><span>累计请求</span><strong id="billingRequests">0</strong></div>
-        </div>
-        <div class="billing-tokens muted small">
-          <span>输入 <b id="billingInputTokens">0</b></span>
-          <span>输出 <b id="billingOutputTokens">0</b></span>
-          <span>缓存 <b id="billingCachedTokens">0</b></span>
-          <span>总计 <b id="billingTotalTokens">0</b></span>
-        </div>
-        <div class="generate-options">
-          <label class="field field-stack"><span class="field-label">币种</span><select id="billingCurrency"><option value="CNY">人民币 CNY</option><option value="USD">美元 USD</option></select></label>
-          <label class="field field-stack"><span class="field-label">输入价 / 百万 Token</span><input id="billingInputPrice" type="number" min="0" step="0.01" value="0" /></label>
-          <label class="field field-stack"><span class="field-label">输出价 / 百万 Token</span><input id="billingOutputPrice" type="number" min="0" step="0.01" value="0" /></label>
-        </div>
-        <div class="setup-actions"><button id="btnBillingRefresh" class="btn">刷新用量</button></div>
-        <p class="muted small">费用按接口返回的真实 Token 用量和你填写的单价估算。不同模型、缓存命中及服务商优惠可能导致账单不同，请以服务商账单为准；DSH 模式暂不计入。</p>
       </section>
 
       <section class="panel">

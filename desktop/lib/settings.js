@@ -29,7 +29,6 @@ const DEFAULTS = {
   watchdogEnabled: true,
   // 两次自动拉起之间的最小间隔（秒）：避免服务反复起不来时被高频重试打爆
   watchdogCooldownSeconds: 180,
-  billing: { currency: 'CNY', inputPerMillion: 0, outputPerMillion: 0 },
   theme: 'dark'
 };
 

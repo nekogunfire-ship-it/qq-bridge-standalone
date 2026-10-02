@@ -315,38 +315,51 @@ function applySettings(s) {
   $('setTray').checked = Boolean(s.minimizeToTray);
   $('setWatchdog').checked = s.watchdogEnabled !== false;
   $('setWatchdogCooldown').value = String(s.watchdogCooldownSeconds ?? 180);
-  $('billingCurrency').value = s.billing?.currency ?? 'CNY';
-  $('billingInputPrice').value = String(s.billing?.inputPerMillion ?? 0);
-  $('billingOutputPrice').value = String(s.billing?.outputPerMillion ?? 0);
   scheduleAutoCheck(Number(s.autoCheckSeconds ?? 60));
-  refreshBilling().catch(() => {});
 }
 
 function formatTokenCount(value) {
   return new Intl.NumberFormat('zh-CN').format(Number(value) || 0);
 }
 
-function billingCost(stats) {
-  const inputPrice = Math.max(0, Number($('billingInputPrice').value) || 0);
-  const outputPrice = Math.max(0, Number($('billingOutputPrice').value) || 0);
-  return ((Number(stats?.inputTokens) || 0) * inputPrice + (Number(stats?.outputTokens) || 0) * outputPrice) / 1_000_000;
+function billingCost(stats, pricing) {
+  const cached = Math.min(Number(stats?.cachedTokens) || 0, Number(stats?.inputTokens) || 0);
+  const uncached = Math.max(0, (Number(stats?.inputTokens) || 0) - cached);
+  return (uncached * pricing.inputPerMillion + cached * pricing.cachedInputPerMillion
+    + (Number(stats?.outputTokens) || 0) * pricing.outputPerMillion) / 1_000_000;
 }
 
-function formatMoney(value) {
-  const currency = $('billingCurrency').value || 'CNY';
+function formatMoney(value, currency = 'USD') {
   return new Intl.NumberFormat('zh-CN', { style: 'currency', currency, minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(value);
 }
 
-async function refreshBilling() {
-  const b = await window.desktop.billingGet();
-  $('billingTodayCost').textContent = formatMoney(billingCost(b.today));
-  $('billingTotalCost').textContent = formatMoney(billingCost(b.total));
+async function refreshBilling(force = false) {
+  const result = await window.desktop.billingGet({ force });
+  const b = result.usage;
+  const p = result.pricing?.pricing;
   $('billingRequests').textContent = formatTokenCount(b.total.requests);
   $('billingInputTokens').textContent = formatTokenCount(b.total.inputTokens);
   $('billingOutputTokens').textContent = formatTokenCount(b.total.outputTokens);
   $('billingCachedTokens').textContent = formatTokenCount(b.total.cachedTokens);
   $('billingTotalTokens').textContent = formatTokenCount(b.total.totalTokens);
-  $('billingUpdated').textContent = b.updatedAt ? `更新于 ${new Date(b.updatedAt).toLocaleString('zh-CN')}` : '暂无直连 API 用量';
+  if (p) {
+    $('billingTodayCost').textContent = formatMoney(billingCost(b.today, p), p.currency);
+    $('billingTotalCost').textContent = formatMoney(billingCost(b.total, p), p.currency);
+    $('billingRates').replaceChildren(...[
+      `${p.model} · ${p.tier}`,
+      `输入 $${p.inputPerMillion}/M`,
+      `缓存 $${p.cachedInputPerMillion}/M`,
+      `输出 $${p.outputPerMillion}/M`
+    ].map((text) => { const span = document.createElement('span'); span.textContent = text; return span; }));
+    $('billingUpdated').textContent = `官网价格 ${result.pricing.cached ? '缓存' : '已更新'} · ${new Date(p.fetchedAt).toLocaleString('zh-CN')}`;
+    $('billingSource').textContent = `${p.provider} 官方定价 · ${p.sourceUrl}${result.pricing.warning ? ` · ${result.pricing.warning}` : ''}`;
+  } else {
+    $('billingTodayCost').textContent = '无法定价';
+    $('billingTotalCost').textContent = '无法定价';
+    $('billingUpdated').textContent = result.pricing?.error || '官网价格不可用';
+    $('billingRates').replaceChildren();
+    $('billingSource').textContent = '未识别到当前模型的官方定价；不会使用猜测价格。';
+  }
 }
 
 function scheduleAutoCheck(seconds) {
@@ -366,15 +379,7 @@ function bindSettings() {
   $('setTray').addEventListener('change', (e) => saveSetting({ minimizeToTray: e.target.checked }));
   $('setWatchdog').addEventListener('change', (e) => saveSetting({ watchdogEnabled: e.target.checked }));
   $('setWatchdogCooldown').addEventListener('change', (e) => saveSetting({ watchdogCooldownSeconds: Number(e.target.value) }));
-  const saveBilling = () => saveSetting({ billing: {
-    currency: $('billingCurrency').value,
-    inputPerMillion: Math.max(0, Number($('billingInputPrice').value) || 0),
-    outputPerMillion: Math.max(0, Number($('billingOutputPrice').value) || 0)
-  } });
-  $('billingCurrency').addEventListener('change', saveBilling);
-  $('billingInputPrice').addEventListener('change', saveBilling);
-  $('billingOutputPrice').addEventListener('change', saveBilling);
-  $('btnBillingRefresh').addEventListener('click', () => refreshBilling().catch((error) => toast(`读取用量失败：${error.message}`, 'error')));
+  $('btnBillingRefresh').addEventListener('click', () => refreshBilling(true).catch((error) => toast(`更新官网价格失败：${error.message}`, 'error')));
 }
 
 function bindActions() {
@@ -1310,6 +1315,7 @@ async function refreshOverviewEvents() {
   window.desktop.onSettings(applySettings);
 
   await refresh();
+  await refreshBilling().catch(() => {});
   await refreshOverviewEvents();
   await refreshMonitor();
 })();
