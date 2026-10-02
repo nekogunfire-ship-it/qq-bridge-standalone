@@ -47,7 +47,7 @@
 
 把 QQ 消息接入 DSH agent：QQ 好友/群发来的消息会变成 DSH 会话里的用户消息，agent 的回复（含提问、工具审批）会发回 QQ。
 
-> ⚠️ **当前版本 `v0.2.0`，兼容 DSH 0.1.5-rc.1，并支持完全脱离 DSH 的 Direct Runtime**。DSH 模式使用 Cookie 鉴权、斜杠 RPC 和 `/api/remote.mux` 事件流；这一代协议自 DSH `0.1.2-alpha.1` 起引入，与更早的点号 endpoint 协议不兼容。
+> ⚠️ **当前版本 `v0.2.1`，兼容 DSH 0.1.5-rc.1，并支持完全脱离 DSH 的 Direct Runtime**。安装程序可选安装 DSH 兼容组件、ComfyUI 环境和 SDXL 图片模型。DSH 模式使用 Cookie 鉴权、斜杠 RPC 和 `/api/remote.mux` 事件流。
 >
 > 默认分支 `main` **就是**本版本，`git clone` 直接拿到，无需切换分支。
 

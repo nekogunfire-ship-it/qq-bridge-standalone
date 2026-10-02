@@ -72,6 +72,11 @@ const planRun = runTool(['--target', TARGET]);
 check('默认（不加 --apply）只出计划', planRun.status === 0 && /以上为\*\*计划\*\*/.test(planRun.out),
   planRun.out.includes('计划') ? '已提示为计划' : planRun.out.slice(-100));
 check('计划模式不创建目标目录', !fs.existsSync(TARGET));
+const optionalPlan = runTool(['--target', TARGET, '--with-comfy', '--with-image-model', '--comfy-variant', 'intel']);
+check('计划列出可选 ComfyUI 环境', optionalPlan.status === 0 && /安装 ComfyUI 环境/.test(optionalPlan.out));
+check('计划保留所选显卡版本', /intel/.test(optionalPlan.out));
+check('计划列出 SDXL 模型与许可证', /SDXL Base 1\.0/.test(optionalPlan.out) && /Open RAIL/.test(optionalPlan.out));
+check('可选组件仍保持计划模式，不启动大文件下载', !fs.existsSync(TARGET));
 
 // ── 2. 拒绝写入"无关的非空目录"（防覆盖用户文件）───────────────────────────
 const foreign = path.join(SANDBOX, 'foreign');

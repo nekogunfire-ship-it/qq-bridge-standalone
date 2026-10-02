@@ -73,6 +73,36 @@ if /i "%ANS%"=="n" set "EXTRA_NODSH=--no-dsh"
 if /i "%ANS%"=="n" echo    -^> will skip DSH's optional dependency; the setup wizard will then use the "direct" runtime.
 echo.
 
+set "EXTRA_COMFY="
+set "EXTRA_MODEL="
+set "EXTRA_COMFY_VARIANT="
+set "ANS="
+set /p "ANS=Install the official ComfyUI Portable environment? (large download) [y/N]: "
+if /i "%ANS%"=="y" (
+  set "EXTRA_COMFY=--with-comfy"
+  echo.
+  echo   GPU package:
+  echo     1. NVIDIA 20 series or newer ^(recommended^)
+  echo     2. NVIDIA 10 series or older ^(CUDA 12.6^)
+  echo     3. AMD ROCm
+  echo     4. Intel XPU
+  set "GPU_CHOICE="
+  set /p "GPU_CHOICE=Choose 1-4 [1]: "
+  if "%GPU_CHOICE%"=="2" set "EXTRA_COMFY_VARIANT=--comfy-variant nvidiaLegacy"
+  if "%GPU_CHOICE%"=="3" set "EXTRA_COMFY_VARIANT=--comfy-variant amd"
+  if "%GPU_CHOICE%"=="4" set "EXTRA_COMFY_VARIANT=--comfy-variant intel"
+  if not defined EXTRA_COMFY_VARIANT set "EXTRA_COMFY_VARIANT=--comfy-variant nvidia"
+  echo.
+  echo   Optional image model: Stable Diffusion XL Base 1.0
+  echo   Download size: about 6.9 GB
+  echo   License: CreativeML Open RAIL++-M
+  echo   https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md
+  set "MODEL_ANS="
+  set /p "MODEL_ANS=Download this model and accept its license? [y/N]: "
+  if /i "%MODEL_ANS%"=="y" set "EXTRA_MODEL=--with-image-model"
+)
+echo.
+
 set "EXTRA_SHORTCUTS="
 set /p "ANS=Create desktop + Start Menu shortcuts? [Y/n]: "
 if /i not "%ANS%"=="n" set "EXTRA_SHORTCUTS=--with-shortcuts"
@@ -106,7 +136,7 @@ if defined EXTRA_TASKS (
 echo ------------------------------------------------------------
 echo   Planned actions (nothing has been changed yet)
 echo ------------------------------------------------------------
-"%NODE_EXE%" "tools\install-core.mjs" --target "%TARGET%" %EXTRA_NODSH% %EXTRA_SHORTCUTS% %EXTRA_REG% %EXTRA_TASKS%
+"%NODE_EXE%" "tools\install-core.mjs" --target "%TARGET%" %EXTRA_NODSH% %EXTRA_COMFY% %EXTRA_MODEL% %EXTRA_COMFY_VARIANT% %EXTRA_SHORTCUTS% %EXTRA_REG% %EXTRA_TASKS%
 echo.
 
 set "CONFIRM="
@@ -123,7 +153,7 @@ echo.
 echo ------------------------------------------------------------
 echo   Installing...
 echo ------------------------------------------------------------
-"%NODE_EXE%" "tools\install-core.mjs" --target "%TARGET%" --apply %EXTRA_NODSH% %EXTRA_SHORTCUTS% %EXTRA_REG% %EXTRA_TASKS%
+"%NODE_EXE%" "tools\install-core.mjs" --target "%TARGET%" --apply %EXTRA_NODSH% %EXTRA_COMFY% %EXTRA_MODEL% %EXTRA_COMFY_VARIANT% %EXTRA_SHORTCUTS% %EXTRA_REG% %EXTRA_TASKS%
 set "RC=%ERRORLEVEL%"
 
 echo.
@@ -136,10 +166,9 @@ if "%RC%"=="0" (
   echo     2. Start it:      run "tools\qq-bridge-launcher.ps1 -Action startAll"
   echo                        from the install folder, or use the shortcut
   echo.
-  echo   Not installed ^(bring your own^):
+  echo   Other external component ^(bring your own^):
   echo     - SnowLuma  QQ gateway
-  echo     - ComfyUI   image generation
-  echo     - DSH       AI host
+  echo   DSH / ComfyUI / SDXL were handled according to your choices above.
 ) else (
   echo   Install finished with problems ^(exit %RC%^).
   echo   Scroll up for details. Nothing outside the target folder was removed.

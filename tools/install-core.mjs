@@ -191,6 +191,16 @@ function buildPlan(p) {
     push('安装依赖（含 DSH 环境）',
       'npm install —— 装上 DSH 的 SDK（可选依赖），dsh 与 direct 两种运行时都能选', 'action');
   }
+  if (has('--with-comfy')) {
+    push('安装 ComfyUI 环境', `从官方 GitHub 下载 Windows Portable（${argValue('--comfy-variant') ?? 'nvidia'}）`, 'action');
+  } else {
+    push('不安装 ComfyUI', '以后可在桌面应用「出图」页安装', 'keep');
+  }
+  if (has('--with-image-model')) {
+    push('安装 SDXL Base 1.0', '约 6.9 GB；用户已在安装向导中接受 CreativeML Open RAIL++-M 许可证', 'action');
+  } else {
+    push('不下载图片模型', '以后可在桌面应用「出图」页阅读许可证并下载', 'keep');
+  }
   push('生成配置', '运行配置向导：npm run setup（体检 + 自动探测 + 询问运行时 + 生成 config.json）', 'action');
 
   if (has('--with-shortcuts')) {
@@ -212,7 +222,7 @@ function buildPlan(p) {
   }
 
   push('写安装标记', `${path.join(p.target, MARKER)}：记录本次创建了什么，便于将来精确卸载`, 'copy');
-  push('不动第三方', 'SnowLuma / ComfyUI / DSH 都不在本程序管理范围内', 'keep');
+  push('第三方边界', 'SnowLuma 始终由用户自行准备；DSH / ComfyUI / SDXL 仅按上述选项处理', 'keep');
 
   return { ok: true, steps, targetState: t, fileCount: files.length };
 }
@@ -326,7 +336,19 @@ function execute(p, log = console.log) {
     rec('安装桌面运行环境', true, '已按 --skip-npm 跳过');
   }
 
-  // 4) 快捷方式
+  // 4) 可选安装 ComfyUI 与图片模型。专用 CLI 复用桌面应用同一套下载、路径和配置逻辑。
+  if (has('--with-comfy') || has('--with-image-model')) {
+    const tool = path.join(p.target, 'tools', 'install-comfy-cli.mjs');
+    const args = [tool];
+    if (has('--with-comfy')) args.push('--with-comfy');
+    if (has('--with-image-model')) args.push('--with-image-model', '--accept-model-license');
+    args.push('--variant', argValue('--comfy-variant') ?? 'nvidia');
+    const comfyResult = spawnSync(process.execPath, args, { cwd: p.target, windowsHide: false, stdio: 'inherit' });
+    rec('ComfyUI / 图片模型', comfyResult.status === 0,
+      comfyResult.status === 0 ? '所选出图组件安装完成' : `安装失败（退出码 ${comfyResult.status}）；可稍后在应用「出图」页重试`);
+  }
+
+  // 5) 快捷方式
   if (has('--with-shortcuts')) {
     const nodeExe = process.execPath;
     const startMjs = path.join(p.target, 'desktop', 'start.mjs');

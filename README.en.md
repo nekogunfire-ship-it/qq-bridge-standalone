@@ -19,7 +19,7 @@ Current version author and maintainer: [@nekogunfire-ship-it](https://github.com
 
 > Connect QQ messages to DeepSeek Harness (DSH) agents: QQ friends/groups become DSH conversations, and agent replies (including questions and tool approvals) are sent back to QQ.
 
-> ⚠️ **Current release `v0.2.0` supports DSH 0.1.5-rc.1 and can also run completely without DSH through Direct Runtime.** DSH mode uses Cookie auth, slash RPC endpoints, and the `/api/remote.mux` event stream — a protocol generation introduced in DSH `0.1.2-alpha.1`, incompatible with the older dot-endpoint protocol.
+> ⚠️ **Current release `v0.2.1` supports DSH 0.1.5-rc.1 and can also run completely without DSH through Direct Runtime.** The installer can optionally add DSH compatibility components, ComfyUI, and the SDXL image model. DSH mode uses Cookie auth, slash RPC endpoints, and the `/api/remote.mux` event stream.
 >
 > The default branch `main` **is** this version — a plain `git clone` gets it, no branch switching needed.
 
