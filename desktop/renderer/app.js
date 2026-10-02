@@ -452,8 +452,11 @@ async function refreshComfySetup() {
   $('comfyEnvState').textContent = s.installed ? '✓ 已安装' : '尚未安装';
   $('comfyEnvDetail').textContent = s.installed ? `环境目录：${s.installDir}` : '需要约 10～20 GB 磁盘空间；实际大小取决于显卡版本。';
   const model = s.models?.sdxlBase;
-  $('comfyModelState').textContent = model?.installed ? '✓ 已安装' : '尚未安装';
-  $('comfyModelDetail').textContent = model?.installed ? `模型文件：${model.filename}` : `下载体积：${model?.sizeLabel ?? '约 6.9 GB'}`;
+  const readyModels = (s.availableModels ?? []).filter((item) => item.installed);
+  $('comfyModelState').textContent = s.modelReady ? `✓ 已检测到 ${readyModels.length} 个可用预设` : '尚未检测到可用模型';
+  $('comfyModelDetail').textContent = s.modelReady
+    ? `可用：${readyModels.map((item) => item.label).join('、')}`
+    : (model?.installed ? `模型文件：${model.filename}` : `推荐模型下载体积：${model?.sizeLabel ?? '约 6.9 GB'}`);
   $('btnComfyInstall').textContent = s.installed ? '重新安装 / 修复 ComfyUI' : '下载并安装 ComfyUI';
   $('btnComfyModelInstall').textContent = model?.installed ? '重新下载模型' : '下载并配置模型';
   $('btnComfyModelInstall').disabled = !s.installed || job.running;
@@ -461,8 +464,8 @@ async function refreshComfySetup() {
   $('btnComfyStart').disabled = !s.installed || job.running;
   $('btnComfyModels').disabled = !s.installed;
   $('btnComfyCancel').hidden = !job.running;
-  $('comfySetupBadge').dataset.state = job.running ? 'busy' : (s.installed && model?.installed ? 'ok' : 'off');
-  $('comfySetupBadge').textContent = job.running ? '安装进行中' : (s.installed && model?.installed ? '可以出图' : '需要配置');
+  $('comfySetupBadge').dataset.state = job.running ? 'busy' : (s.installed && s.modelReady ? 'ok' : 'off');
+  $('comfySetupBadge').textContent = job.running ? '安装进行中' : (s.installed && s.modelReady ? '可以出图' : '需要配置');
   $('comfySetupProgress').style.width = `${Math.max(0, Math.min(100, Number(job.percent) || 0))}%`;
   $('comfySetupMessage').textContent = job.error ? `失败：${job.error}` : (job.message || '暂无任务');
   $('comfySetupBytes').textContent = job.received ? `${formatBytes(job.received)}${job.total ? ` / ${formatBytes(job.total)}` : ''}` : '';
@@ -513,17 +516,29 @@ let generatedImagePath = '';
 
 async function refreshImageWorkbench() {
   const s = await window.desktop.comfySetupStatus();
-  const model = s.models?.sdxlBase;
-  const ready = Boolean(s.installed && model?.installed);
+  const readyModels = (s.availableModels ?? []).filter((item) => item.installed);
+  const ready = Boolean(s.installed && readyModels.length);
   $('generateBadge').dataset.state = ready ? 'ok' : 'off';
   $('generateBadge').textContent = ready ? '可以出图' : '需要安装扩展';
   $('generateServiceState').textContent = ready ? 'ComfyUI 与模型已安装' : '请先安装 ComfyUI 与图片模型';
   $('btnGenerateImage').disabled = !ready;
   const select = $('generateModel');
-  if (!select.options.length) {
+  const previous = select.value;
+  select.replaceChildren();
+  for (const item of readyModels) {
     const option = document.createElement('option');
-    option.value = 'sdxl-base';
-    option.textContent = 'Stable Diffusion XL Base 1.0';
+    option.value = item.key;
+    option.textContent = item.label;
+    select.appendChild(option);
+  }
+  const preferred = readyModels.some((item) => item.key === previous)
+    ? previous
+    : (readyModels.some((item) => item.key === s.defaultModel) ? s.defaultModel : readyModels[0]?.key);
+  if (preferred) select.value = preferred;
+  if (!readyModels.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = '未检测到完整模型预设';
     select.appendChild(option);
   }
 }

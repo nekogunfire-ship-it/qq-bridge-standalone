@@ -74,6 +74,8 @@ These choices are not limited to first-time setup. Open **Extensions → Environ
 
 The desktop app also provides a dedicated **Image Generation** page alongside Overview and Monitor. Once the environment is ready, you can enter positive and negative prompts, select a model, canvas ratio, sampling steps, CFG, and seed, then generate and preview the result directly in the app. Generated images remain local and are not sent to QQ automatically. If a dependency is missing, the page links directly to Extensions.
 
+Model detection is not limited to the installer-provided SDXL file. The app reads the ComfyUI presets in `config.json` and validates either each checkpoint, or the diffusion model, text encoder, VAE, and required LoRA. Existing Anima, SDXL, and custom presets appear in the model selector whenever their files are complete, without requiring another download.
+
 > The installer is not commercially code-signed yet, so Windows may show an “Unknown publisher” warning. Each release includes a `SHA256SUMS-*.json` manifest for integrity verification.
 
 ### Manual installation

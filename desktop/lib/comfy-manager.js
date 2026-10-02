@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { resolveComfyConfig } from '../../src/comfy-client.js';
 
 const PORTABLES = Object.freeze({
   nvidia: { label: 'NVIDIA 20 系及更新', url: 'https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z' },
@@ -67,6 +68,26 @@ export function comfySetupStatus(root) {
     ...model,
     installed: fs.existsSync(path.join(installDir, 'ComfyUI', 'models', 'checkpoints', model.filename))
   }]));
+  const comfyRoot = path.join(installDir, 'ComfyUI');
+  const configured = resolveComfyConfig(root);
+  const hasModelFile = (folders, filename) => {
+    if (!filename) return false;
+    return folders.some((folder) => fs.existsSync(path.join(comfyRoot, 'models', folder, filename)));
+  };
+  const availableModels = Object.entries(configured.models ?? {}).map(([key, preset]) => {
+    const required = preset.family === 'checkpoint'
+      ? [{ kind: '底模', ok: hasModelFile(['checkpoints'], preset.ckpt), file: preset.ckpt }]
+      : [
+          { kind: '扩散模型', ok: hasModelFile(['diffusion_models', 'unet'], preset.unet), file: preset.unet },
+          { kind: '文本编码器', ok: hasModelFile(['text_encoders', 'clip'], preset.clip), file: preset.clip },
+          { kind: 'VAE', ok: hasModelFile(['vae'], preset.vae), file: preset.vae }
+        ];
+    if (preset.autoLora !== false && configured.autoLora !== false && preset.lora) {
+      required.push({ kind: 'LoRA', ok: hasModelFile(['loras'], preset.lora), file: preset.lora });
+    }
+    const missing = required.filter((item) => !item.ok).map((item) => `${item.kind}：${item.file}`);
+    return { key, label: preset.label || key, family: preset.family, installed: missing.length === 0, missing };
+  });
   return {
     ok: true,
     installed: fs.existsSync(python) && fs.existsSync(main),
@@ -76,6 +97,9 @@ export function comfySetupStatus(root) {
     variant: saved.variant,
     variants: PORTABLES,
     models,
+    availableModels,
+    modelReady: availableModels.some((model) => model.installed),
+    defaultModel: configured.defaultModel,
     job: { ...job }
   };
 }
