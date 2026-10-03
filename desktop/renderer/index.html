@@ -101,7 +101,7 @@
     </section>
 
     <section class="panel billing-panel">
-      <div class="panel-head"><h2>API 计费</h2><span id="billingUpdated" class="muted small">正在读取官网价格…</span><span class="grow"></span><button id="btnBillingRefresh" class="btn btn-small">更新官网价格</button></div>
+      <div class="panel-head"><h2>API 计费</h2><span id="billingUpdated" class="muted small">正在读取官网价格…</span><span class="grow"></span><select id="billingCurrency" class="select-small" title="切换费用显示币种"><option value="CNY">CNY ¥</option><option value="USD">USD $</option><option value="EUR">EUR €</option><option value="JPY">JPY ¥</option><option value="GBP">GBP £</option></select><button id="btnBillingRefresh" class="btn btn-small">更新价格 / 汇率</button></div>
       <div class="billing-summary">
         <div><span>今日预估</span><strong id="billingTodayCost">—</strong></div>
         <div><span>累计预估</span><strong id="billingTotalCost">—</strong></div>

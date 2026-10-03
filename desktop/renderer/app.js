@@ -315,6 +315,7 @@ function applySettings(s) {
   $('setTray').checked = Boolean(s.minimizeToTray);
   $('setWatchdog').checked = s.watchdogEnabled !== false;
   $('setWatchdogCooldown').value = String(s.watchdogCooldownSeconds ?? 180);
+  $('billingCurrency').value = s.billingDisplayCurrency ?? 'CNY';
   scheduleAutoCheck(Number(s.autoCheckSeconds ?? 60));
 }
 
@@ -337,22 +338,25 @@ async function refreshBilling(force = false) {
   const result = await window.desktop.billingGet({ force });
   const b = result.usage;
   const p = result.pricing?.pricing;
+  const currency = $('billingCurrency').value || 'CNY';
+  const rate = Number(result.exchange?.rates?.[currency]) || (currency === 'USD' ? 1 : 0);
   $('billingRequests').textContent = formatTokenCount(b.total.requests);
   $('billingInputTokens').textContent = formatTokenCount(b.total.inputTokens);
   $('billingOutputTokens').textContent = formatTokenCount(b.total.outputTokens);
   $('billingCachedTokens').textContent = formatTokenCount(b.total.cachedTokens);
   $('billingTotalTokens').textContent = formatTokenCount(b.total.totalTokens);
-  if (p) {
-    $('billingTodayCost').textContent = formatMoney(billingCost(b.today, p), p.currency);
-    $('billingTotalCost').textContent = formatMoney(billingCost(b.total, p), p.currency);
+  if (p && rate) {
+    $('billingTodayCost').textContent = formatMoney(billingCost(b.today, p) * rate, currency);
+    $('billingTotalCost').textContent = formatMoney(billingCost(b.total, p) * rate, currency);
+    const displayRate = (value) => formatMoney(value * rate, currency);
     $('billingRates').replaceChildren(...[
       `${p.model} · ${p.tier}`,
-      `输入 $${p.inputPerMillion}/M`,
-      `缓存 $${p.cachedInputPerMillion}/M`,
-      `输出 $${p.outputPerMillion}/M`
+      `输入 ${displayRate(p.inputPerMillion)}/M`,
+      `缓存 ${displayRate(p.cachedInputPerMillion)}/M`,
+      `输出 ${displayRate(p.outputPerMillion)}/M`
     ].map((text) => { const span = document.createElement('span'); span.textContent = text; return span; }));
     $('billingUpdated').textContent = `官网价格 ${result.pricing.cached ? '缓存' : '已更新'} · ${new Date(p.fetchedAt).toLocaleString('zh-CN')}`;
-    $('billingSource').textContent = `${p.provider} 官方定价 · ${p.sourceUrl}${result.pricing.warning ? ` · ${result.pricing.warning}` : ''}`;
+    $('billingSource').textContent = `${p.provider} 官方定价 · ${p.sourceUrl} · 汇率 ${result.exchange?.rateDate || '缓存'}（${result.exchange?.source || 'USD'}）${result.pricing.warning ? ` · ${result.pricing.warning}` : ''}${result.exchange?.warning ? ` · ${result.exchange.warning}` : ''}`;
   } else {
     $('billingTodayCost').textContent = '无法定价';
     $('billingTotalCost').textContent = '无法定价';
@@ -379,6 +383,10 @@ function bindSettings() {
   $('setTray').addEventListener('change', (e) => saveSetting({ minimizeToTray: e.target.checked }));
   $('setWatchdog').addEventListener('change', (e) => saveSetting({ watchdogEnabled: e.target.checked }));
   $('setWatchdogCooldown').addEventListener('change', (e) => saveSetting({ watchdogCooldownSeconds: Number(e.target.value) }));
+  $('billingCurrency').addEventListener('change', async (e) => {
+    await saveSetting({ billingDisplayCurrency: e.target.value });
+    refreshBilling().catch((error) => toast(`切换币种失败：${error.message}`, 'error'));
+  });
   $('btnBillingRefresh').addEventListener('click', () => refreshBilling(true).catch((error) => toast(`更新官网价格失败：${error.message}`, 'error')));
 }
 

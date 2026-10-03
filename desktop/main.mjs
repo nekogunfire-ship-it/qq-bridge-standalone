@@ -25,7 +25,7 @@ import { readRuntimeApiKey, readRuntimeConfig, writeRuntimeConfig } from './lib/
 import { DirectRuntime } from '../src/agent-runtime/direct.js';
 import { generateImage, resolveComfyConfig } from '../src/comfy-client.js';
 import { readApiBilling } from '../src/api-billing.js';
-import { getOfficialPricing } from './lib/official-pricing.js';
+import { getExchangeRates, getOfficialPricing } from './lib/official-pricing.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -684,8 +684,11 @@ function registerIpc() {
   ipcMain.handle('settings:get', () => loadSettings());
   ipcMain.handle('billing:get', async (_evt, options = {}) => {
     const runtime = readRuntimeConfig(ROOT)?.runtime ?? {};
-    const pricing = await getOfficialPricing(ROOT, { baseUrl: runtime.baseUrl, model: runtime.model, force: options.force === true });
-    return { usage: readApiBilling(ROOT), pricing };
+    const [pricing, exchange] = await Promise.all([
+      getOfficialPricing(ROOT, { baseUrl: runtime.baseUrl, model: runtime.model, force: options.force === true }),
+      getExchangeRates(ROOT, { force: options.force === true })
+    ]);
+    return { usage: readApiBilling(ROOT), pricing, exchange };
   });
   ipcMain.handle('settings:set', (_evt, patch) => {
     const next = saveSettings(patch ?? {});

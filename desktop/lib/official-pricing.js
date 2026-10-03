@@ -3,8 +3,10 @@ import path from 'node:path';
 
 const DEEPSEEK_PRICING_URL = 'https://api-docs.deepseek.com/quick_start/pricing/';
 const CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const FX_URL = 'https://api.frankfurter.app/latest?from=USD&to=CNY,EUR,JPY,GBP';
 
 function cacheFile(root) { return path.join(root, 'state', 'official-pricing-cache.json'); }
+function fxCacheFile(root) { return path.join(root, 'state', 'exchange-rate-cache.json'); }
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; } }
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -58,5 +60,29 @@ export async function getOfficialPricing(root, { baseUrl = '', model = '', force
   } catch (error) {
     if (cached?.model === model) return { ok: true, pricing: cached, cached: true, warning: `官网更新失败，使用缓存：${error.message}` };
     return { ok: false, error: error?.message ?? String(error), model };
+  }
+}
+
+export async function getExchangeRates(root, { force = false } = {}) {
+  const cached = readJson(fxCacheFile(root));
+  if (!force && cached?.rates && Date.now() - Date.parse(cached.fetchedAt || 0) < CACHE_MAX_AGE_MS) {
+    return { ok: true, ...cached, cached: true };
+  }
+  try {
+    const response = await fetch(FX_URL, { headers: { 'user-agent': 'qq-bridge-pricing/1.0' }, signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error(`汇率接口 HTTP ${response.status}`);
+    const body = await response.json();
+    const rates = { USD: 1 };
+    for (const code of ['CNY', 'EUR', 'JPY', 'GBP']) {
+      const value = Number(body?.rates?.[code]);
+      if (!Number.isFinite(value) || value <= 0) throw new Error(`汇率接口缺少 ${code}`);
+      rates[code] = value;
+    }
+    const data = { base: 'USD', rates, rateDate: body.date, fetchedAt: new Date().toISOString(), source: 'Frankfurter / ECB reference rates' };
+    writeJson(fxCacheFile(root), data);
+    return { ok: true, ...data, cached: false };
+  } catch (error) {
+    if (cached?.rates) return { ok: true, ...cached, cached: true, warning: `汇率更新失败，使用缓存：${error.message}` };
+    return { ok: false, rates: { USD: 1 }, error: error?.message ?? String(error) };
   }
 }
