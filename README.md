@@ -137,6 +137,8 @@ npm install        # 安装依赖（postinstall 会自动修补 @snowluma/sdk �
 | `snowluma.launcherPath` / `homeDir` | SnowLuma 启动脚本与安装目录（供 agent 自动启动/停止） |
 | `agentPreset` | QQ 会话使用的 DSH agent preset，默认 `qq-chat`（改性格见下文） |
 | `socialV2.agentPreset` | `reserved2` 模式使用的 DSH agent preset，默认 `qq-chat-v2` |
+| `socialV2.feedback.errorNotify` | **桥接自己报错往哪报**：`off`（默认，只写 `state/bridge.log` 与 `state/qq-activity.log`）/ `owner`（额外私聊管理员 `ownerQQ`）/ `session`（旧行为：直接在出事的 QQ 会话里发一条「⚠️ 消息未能送达 AI：…」）。见 [RULES.md](RULES.md)「报错去哪」 |
+| `socialV2.feedback.notifyOwnerOnError` | `qq_report_feedback` 的 `level=error` 条目是否私聊管理员（默认 `false`）；无论开关如何，AI 反馈**都不会进群** |
 | `workspaceTitle` | QQ 会话在 DSH 界面中的归组名称，默认「QQ 聊天」 |
 | `allow.private` / `allow.groups` | 白名单（QQ 号/群号数组）；留空且 `allowAllWhenEmpty: true` 时放行全部 |
 | `deny.*` | 黑名单，优先于白名单 |
