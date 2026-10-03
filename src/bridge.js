@@ -65,6 +65,8 @@ const SLANG_SESSION_FILE = path.join(STATE_DIR, 'slang-session.json');
 const SOCIAL_V2_FILE = path.join(STATE_DIR, 'social-v2.json');
 const STICKER_FILE = path.join(STATE_DIR, 'stickers.json');
 const FEEDBACK_FILE = path.join(STATE_DIR, 'feedback.json');
+// 桥接报错的去处（cfg.socialV2.feedback.errorNotify）：off=只进日志 / owner=私聊管理员 / session=当前会话
+const ERROR_NOTIFY_MODES = new Set(['off', 'owner', 'session']);
 const TOOL_LOG_FILE = path.join(STATE_DIR, 'tool-calls.jsonl');
 const ACTIVITY_LOG = path.join(STATE_DIR, 'qq-activity.log');
 const BRIDGE_LOG = path.join(STATE_DIR, 'bridge.log');
@@ -189,6 +191,48 @@ function appendActivity(line) {
     const lines = raw.split('\n');
     if (lines.length > 500) fs.writeFileSync(ACTIVITY_LOG, lines.slice(-500).join('\n'));
   } catch {}
+}
+
+// ── 桥接报错去哪（2026-10-03）────────────────────────────────────────────
+// 旧行为是把「⚠️ 消息未能送达 AI：请求超时」「⚠️ agent 处理出错：Insufficient Balance」
+// 这类**桥接/模型侧的系统报错**直接发进当前 QQ 会话 —— 群里看到的就是「机器人坏了」，
+// 而真正要处理这些事的只有管理员。现在统一从 notifyProblem 这一个出口走：
+//   off（默认）= 只写 bridge.log 与 qq-activity.log
+//   owner      = 额外私聊管理员（ownerQQ）
+//   session    = 旧行为（当前会话里出条 ⚠️），需要时用控制台/AI 显式切回去
+// 注意：**仅覆盖系统报错**。用户自己能修好并把动作接回正轨的临时提示不走这里
+// （例：审批回执提交失败「请再回复一次」、出图失败原因），它们对用户直接有用。
+function errorNotifyMode(cfg) {
+  const mode = String(cfg?.socialV2?.feedback?.errorNotify ?? 'off').trim().toLowerCase();
+  return ERROR_NOTIFY_MODES.has(mode) ? mode : 'off';
+}
+
+/**
+ * 桥接/模型侧报错的唯一出口。**必须显式传 cfg 与 sendToQQ**：
+ * 这个函数在模块作用域，拿不到 main() 里的 cfg 和闭包里的 sendToQQ
+ * （2026-10-03 实测：漏传 cfg 时 direct 失败路径抛 "cfg is not defined"，
+ * 报错反而彻底丢了 —— 所以参数是必填的，别图省事改回闭包读取）。
+ */
+async function notifyProblem(cfg, sendToQQ, key, message, opts = {}) {
+  const text = String(message ?? '').trim();
+  if (!text) return { sent: 'none' };
+  const mode = errorNotifyMode(cfg);
+  log(`[problem] ${key} 报错（errorNotify=${mode}）：${text}`);
+  appendActivity(`${key} 报错（仅记录，不发 QQ）：${text.slice(0, 120)}`);
+  if (mode === 'owner') {
+    const owner = String(cfg.ownerQQ ?? '').trim();
+    if (!/^\d+$/.test(owner)) {
+      log('[problem] 想私聊管理员报错，但 config.json 的 ownerQQ 没配/不是 QQ 号 —— 已跳过');
+      return { sent: 'none' };
+    }
+    await sendToQQ(`private:${owner}`, text);
+    return { sent: 'owner' };
+  }
+  if (mode === 'session' && opts.silent !== true) {
+    await sendToQQ(key, text);
+    return { sent: 'session' };
+  }
+  return { sent: 'none' };
 }
 
 // 读取角色/模式状态：{"role": "傲娇助手", "mode": "active"|"silent"}
@@ -465,7 +509,15 @@ function loadConfig() {
       },
       feedback: {
         maxLength: 500,
-        notifyOwnerOnError: false
+        notifyOwnerOnError: false,
+        // 桥接自己的报错（未能送达 AI / 消息未被接受 / agent 处理出错）往哪报：
+        //   off     = 只进日志与活动记录（默认，QQ 会话里一声不响）
+        //   owner   = 私聊管理员（ownerQQ）
+        //   session = 当前会话（旧行为：群里会出现「⚠️ agent 处理出错：…」这类消息）
+        // 见 RULES.md「报错去哪」；控制台 /api/socialV2/config 可改。
+        // 注：qq_report_feedback（AI 主动反馈）不走这里，它只写控制台反馈面板，
+        // notifyOwnerOnError 打开时才额外私聊管理员。
+        errorNotify: 'off'
       },
       context: {
         recentLimit: 100,
@@ -3205,6 +3257,12 @@ async function main() {
               merged.feedback.maxLength = Number.isFinite(n) ? Math.max(1, Math.round(n)) : current.feedback?.maxLength ?? 500;
             }
             if (merged.feedback.notifyOwnerOnError !== undefined) merged.feedback.notifyOwnerOnError = merged.feedback.notifyOwnerOnError === true;
+            // errorNotify：只认 off / owner / session 三个值，其余（含拼错）一律回落到 off ——
+            // 「报错别进 QQ 会话」是默认行为，不能因为一个手滑的字符串就退回旧行为。
+            if (merged.feedback.errorNotify !== undefined) {
+              const mode = String(merged.feedback.errorNotify ?? '').trim().toLowerCase();
+              merged.feedback.errorNotify = ERROR_NOTIFY_MODES.has(mode) ? mode : 'off';
+            }
           }
           // context：数值归一化
           if (body.context && typeof body.context === 'object') {
@@ -4787,7 +4845,14 @@ async function main() {
           log(`[reserved2] AI 反馈 (${key}) [${level}]: ${message.slice(0, 80)}`);
           appendActivity(`${key} [reserved2] AI 反馈 [${level}]：${message.slice(0, 80)}`);
           if (cfg.socialV2?.feedback?.notifyOwnerOnError && level === 'error' && cfg.ownerQQ) {
-            log(`[reserved2] 错误级反馈，可通知 owner ${cfg.ownerQQ}（当前仅记录日志）`);
+            // 只私聊管理员 —— 这条通道是「AI 主动上报」，永远不进群（2026-10-03 落实）
+            try {
+              const ownerKey = `private:${String(cfg.ownerQQ)}`;
+              await sendToQQ(ownerKey, `⚠️ ${key} 的 AI 反馈：${message}`);
+              log(`[reserved2] 错误级反馈已私聊通知 owner ${cfg.ownerQQ}`);
+            } catch (error) {
+              log(`[reserved2] 错误级反馈通知 owner 失败：${error?.message ?? error}`);
+            }
           }
           sendJson({ ok: true, key, level, message });
           return;
@@ -7474,7 +7539,7 @@ async function main() {
         log(`[direct] ${key} 请求失败：${r.error}`);
         // hint 是"怎么修"的操作说明 —— 进日志，不进 QQ（群聊里贴操作步骤很奇怪）
         if (r.hint) log(`[direct] ${key} 修复提示：${r.hint}`);
-        if (!opts.silent) await sendToQQ(key, `⚠️ 消息未能送达 AI：${r.error}`);
+        await notifyProblem(cfg, sendToQQ, key, `⚠️ 消息未能送达 AI：${r.error}`, { silent: opts.silent === true });
         return { ok: false, error: r.error };
       }
 
@@ -7558,7 +7623,7 @@ async function main() {
       if (opts.farewell) social.exitingSessions.delete(sessionId);
       const errText = `${accepted.result.error.code}: ${accepted.result.error.message}`;
       const safeErrText = shouldAuditKey(key) && SENSITIVE_RE.test(errText) ? '（含敏感信息，已隐藏）' : errText;
-      if (!opts.silent) await sendToQQ(key, `⚠️ 消息未被接受：${safeErrText}`);
+      await notifyProblem(cfg, sendToQQ, key, `⚠️ 消息未被接受：${safeErrText}`, { silent: opts.silent === true });
       return { ok: false, error: safeErrText };
     }
     if (accepted.result.value.command?.text && !opts.silent && currentMode !== 'reserved2') {
@@ -8486,13 +8551,12 @@ async function main() {
     const statusLine = `【此刻状态】${statusBits.join('；')}\n\n`;
     // 把触发唤醒的最近消息直接写进 prompt：agent 不必先调 qq_get_unread_messages 就能看到内容，
     // 省掉一次完整的模型往返——实测这是这类回复延迟的主要构成之一。
-    const recentForWake = (Array.isArray(st.recentMessages) ? st.recentMessages : [])
-      .filter((m) => m && !m.isSelf)
-      .slice(-6);
+    const recentForWake = recentMessagesForWakeV2(st);
     const triggerLine = recentForWake.length
       ? `【刚收到的消息】（最新在下；这就是本次唤醒的上下文）\n${recentForWake.map((m) => {
         const txt = safeSlice(String(m.text || m.plain || '').replace(/\s+/g, ' '), 80) || '[非文本消息]';
-        return `- ${fmtClockOf(m.time)} ${String(m.sender || '未知')}：${txt}`;
+        const mediaNote = m.hasMedia || (Array.isArray(m.media) && m.media.length) ? '（图片已随本轮附上）' : '';
+        return `- ${fmtClockOf(m.time)} ${String(m.sender || '未知')}：${txt}${mediaNote}`;
       }).join('\n')}\n\n`
       : '';
     // 紧跟"刚收到的消息"：别人说的话和你自己刚说过的话挨着出现 ——
@@ -8557,6 +8621,19 @@ async function main() {
       return `${base}【黑话唤醒】${key}\n原因：刚进来的消息里出现了黑话/网络用语，桥接把你叫醒了——这是你判断“群里现在在聊什么、我要不要接”的最好时机。\n【怎么做】先看上面的【本次消息里的黑话】和【刚收到的消息】：已认识的词直接用它的含义理解整句话；不确定的新词可以先用 mcp__web-search-safe__web_search 查一下（只读搜索），确认后**顺手调 qq_slang_submit(content=词, context=你看到的那句话, meaning=你查到的含义, confidence=0~1)** 把它记进库里，这样下次就不用再查。\n然后用 qq_send_message / qq_reply 自然接一句（想用这个词就用得自然点，别解释词义、别像在上课）；接不上或没必要接，就按【沉睡前强制等待】走收尾。`;
     }
     return `${base}【唤醒】${key}\n原因：${reason}\n【行动前】先判断：群里在聊什么？热闹还是冷清？有没有人直接找你？对方说完了吗？你有没有真正想说的？\n如果群聊正热但没人叫你，可以插一句有趣的/相关的，插不上再看情况潜水；不要一上来就划走。\n【引用：只在必要时用】只有你这条消息指向的人或消息并非最新一条别人的消息，或者你连续的几句话中不同消息指代的是不同的消息或人时，才用 qq_reply 或 qq_send_message 的 replyToMessageId 指向具体那条；其他情况不要引用，别让对方猜。\n你可以调用工具查看未读消息、人设、状态，自行决定是否发言；决定潜水前必须按上面的【沉睡前强制等待】先等够观察窗口。`;
+  }
+
+  // 唤醒 prompt 与随附图片必须取自同一批消息。此前 prompt 会列出最近消息，
+  // 却没有把这些消息的 media 交给 deliverPrompt，模型实际只看见“[图片]”占位符。
+  function recentMessagesForWakeV2(st) {
+    return (Array.isArray(st?.recentMessages) ? st.recentMessages : [])
+      .filter((m) => m && !m.isSelf)
+      .slice(-6);
+  }
+
+  function mediaForWakeV2(st) {
+    return recentMessagesForWakeV2(st)
+      .flatMap((m) => Array.isArray(m.media) ? m.media : []);
   }
 
   /**
@@ -8648,7 +8725,9 @@ async function main() {
     try {
       pendingWakeKeys.add(key);
       armPendingWakeLease(key);
-      const result = await deliverPrompt(key, promptText);
+      const wakeMedia = cfg.runtime?.images === false ? [] : mediaForWakeV2(st);
+      if (wakeMedia.length) log(`[reserved2] ${key} 唤醒随附 ${wakeMedia.length} 个图片/表情媒体项`);
+      const result = await deliverPrompt(key, promptText, { media: wakeMedia });
       const restoreFiniteSleep = () => {
         if (hadFiniteSleep) {
           st.wakeConfig.sleepUntil = prevSleepUntil;
@@ -9317,7 +9396,7 @@ async function main() {
     if (!accepted.result.ok) {
       const errText = `${accepted.result.error.code}: ${accepted.result.error.message}`;
       const safeErrText = shouldAuditKey(key) && SENSITIVE_RE.test(errText) ? '（含敏感信息，已隐藏）' : errText;
-      await sendToQQ(key, `⚠️ 消息未被接受：${safeErrText}`);
+      await notifyProblem(cfg, sendToQQ, key, `⚠️ 消息未被接受：${safeErrText}`);
       return;
     }
     if (accepted.result.value.command) {
@@ -9779,7 +9858,7 @@ async function main() {
               } else if (ended.reason.kind === 'error') {
                 const msg = ended.reason.error?.message ?? '未知错误';
                 const safeMsg = shouldAuditKey(key) && SENSITIVE_RE.test(msg) ? '（含敏感信息，已隐藏）' : msg.slice(0, 500);
-                await sendToQQ(key, `⚠️ agent 处理出错：${safeMsg}`);
+                await notifyProblem(cfg, sendToQQ, key, `⚠️ agent 处理出错：${safeMsg}`);
                 if (isFarewell) {
                   const st = socialState(key);
                   if (st.phase === 'exiting') {

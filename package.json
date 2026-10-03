@@ -25,6 +25,7 @@
     "test:desktop-dsh": "node scripts/test-desktop-dsh-watch.mjs",
     "test:desktop-watchdog": "node scripts/test-desktop-watchdog.mjs",
     "test:bridge-signals": "node scripts/test-bridge-signal-logging.mjs",
+    "test:error-notify": "node scripts/test-error-notify-wiring.mjs",
     "test:embed-headers": "node scripts/test-console-embed-headers.mjs",
     "test:console-scripts": "node scripts/test-console-html-scripts.mjs",
     "test:uninstall": "node scripts/test-uninstall-plan.mjs",

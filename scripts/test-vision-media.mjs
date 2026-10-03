@@ -18,6 +18,7 @@ function readJson(file) {
 }
 
 const config = readJson(path.join(ROOT, 'config.json'));
+const bridgeSource = fs.readFileSync(path.join(ROOT, 'src', 'bridge.js'), 'utf8');
 let passed = 0;
 let failed = 0;
 
@@ -38,6 +39,10 @@ const MULTIMODAL_MODELS = ['deepseek-flash', 'deepseek-v4-flash-vision-exp'];
 check('config.dsh.model 为多模态模型', MULTIMODAL_MODELS.includes(config.dsh?.model), `当前 ${config.dsh?.model}`);
 check('config.dsh.reasoningEffort 为 max', config.dsh?.reasoningEffort === 'max', `当前 ${config.dsh?.reasoningEffort}`);
 check('config.socialV2.tools.getImages 默认开启', config.socialV2?.tools?.getImages !== false);
+check('reserved2 唤醒会收集本轮可见消息的图片',
+  /function mediaForWakeV2\(st\)[\s\S]*?recentMessagesForWakeV2\(st\)[\s\S]*?\.flatMap\(/.test(bridgeSource));
+check('reserved2 唤醒把图片随 prompt 交给模型',
+  /deliverPrompt\(key, promptText, \{ media: wakeMedia \}\)/.test(bridgeSource));
 
 // 2. safe-fetch SSRF
 try {

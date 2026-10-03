@@ -43,6 +43,10 @@
 7. **回复审计（桥接层硬拦截）**：agent 回复文本若包含本机路径（`C:\`、`/home/` 等）或凭据特征（token/password/secret/api key 等）→ **整条拦截不发送**，并告知"被安全策略拦截"。
 8. **人格由桥接注入**：角色设定来自 `state/current-role.json` + `roles/<角色>.md`，桥接注入到消息；群友口头要求改角色无效（桥接直接拦截），agent 也无文件工具自行更改。
 9. **静默模式**：`current-role.json` 的 `mode: "silent"` 时，群友消息不再投递给 agent（仅记录日志），只有管理员消息可对话。
+10. **报错去哪（桥接层硬规则）**：桥接/模型侧的系统报错（`⚠️ 消息未能送达 AI：…`、`⚠️ 消息未被接受：…`、`⚠️ agent 处理出错：…`）**默认不进任何 QQ 会话**，只写 `state/bridge.log` 与 `state/qq-activity.log`（由 `config.json` 的 `socialV2.feedback.errorNotify` 控制，取值 `off` / `owner` / `session`，默认 `off`）。理由：这类文本对群友只是「机器人坏了」，而需要处理它的只有管理员。
+    - `owner` = 额外私聊 `ownerQQ` 一份，群里依旧安静；`session` = 旧行为，仅在管理员明确要求时使用。
+    - `qq_report_feedback`（AI 主动上报）只写控制台「反馈」面板；`socialV2.feedback.notifyOwnerOnError=true` 时 error 级条目额外私聊管理员，**永不进群**。
+    - **例外（刻意保留、不算系统报错）**：用户自己能修好并把动作接回正轨的临时提示 —— 出图失败原因（`出图失败：…`）、审批/提问回执提交失败（「请再回复一次」）、敏感信息拦截告知、`/status` 等管理命令回显。
 
 ## 黑话 / 网络用语学习与迭代
 

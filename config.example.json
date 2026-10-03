@@ -301,7 +301,8 @@
     },
     "feedback": {
       "maxLength": 500,
-      "notifyOwnerOnError": false
+      "notifyOwnerOnError": false,
+      "errorNotify": "off"
     },
     "context": {
       "recentLimit": 100,

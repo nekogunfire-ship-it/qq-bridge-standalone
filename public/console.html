@@ -599,6 +599,14 @@
         <label style="flex:1">错误级通知 owner</label><input type="checkbox" id="v2FeedbackNotifyOwner" style="width:auto">
       </div>
       <div class="row" style="margin-top:6px">
+        <label style="flex:1" title="桥接自己的报错（未能送达 AI / 消息未被接受 / agent 处理出错）往哪报。off=只写日志，群里一声不响；owner=额外私聊管理员；session=发到出事的会话（旧行为）">桥接报错去哪</label>
+        <select id="v2ErrorNotify" style="width:auto">
+          <option value="off">off（只写日志，不发 QQ）</option>
+          <option value="owner">owner（私聊管理员）</option>
+          <option value="session">session（发到当前会话·旧行为）</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:6px">
         <button id="v2FeedbackLoad" class="small">加载 AI 反馈</button>
         <button id="v2FeedbackClear" class="small danger">清空 AI 反馈</button>
         <span class="meta" id="v2FeedbackMsg"></span>
@@ -1256,6 +1264,9 @@ async function loadV2Config() {
     const fb = c.feedback || {};
     document.getElementById('v2FeedbackMaxLength').value = fb.maxLength ?? 500;
     document.getElementById('v2FeedbackNotifyOwner').checked = fb.notifyOwnerOnError === true;
+    // 只认 off / owner / session；历史配置里没有这个键（或值不合法）时按 off 显示 —— 与桥接端回落一致
+    const errorNotify = ['off', 'owner', 'session'].includes(fb.errorNotify) ? fb.errorNotify : 'off';
+    document.getElementById('v2ErrorNotify').value = errorNotify;
   } catch {}
 }
 
@@ -1340,7 +1351,8 @@ async function saveV2Config() {
     },
     feedback: {
       maxLength: Math.round(Number(document.getElementById('v2FeedbackMaxLength').value) || 500),
-      notifyOwnerOnError: document.getElementById('v2FeedbackNotifyOwner').checked
+      notifyOwnerOnError: document.getElementById('v2FeedbackNotifyOwner').checked,
+      errorNotify: document.getElementById('v2ErrorNotify').value
     }
   };
   const r = await api('/api/socialV2/config', 'POST', body);
