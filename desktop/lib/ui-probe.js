@@ -23,7 +23,7 @@ export const COLLECT_SCRIPT = `(() => {
   const out = { views: {}, elements: [], overflow: [], texts: {} };
 
   // 1) 三个分区的可见性与尺寸（隐藏的也临时量一次真实高度）
-  const VIEWS = ['viewOverview', 'viewMonitor', 'viewSettings'];
+  const VIEWS = ['viewOverview', 'viewMonitor', 'viewGenerate', 'viewImages', 'viewSettings'];
   for (const id of VIEWS) {
     const el = document.getElementById(id);
     if (!el) { out.views[id] = { missing: true }; continue; }
@@ -228,8 +228,15 @@ export async function runUiProbe(win, { root, log = () => {} }) {
     else setTimeout(resolve, 2500);
   });
 
-  // 依次切到三个分区、各截一张并采集一次
-  for (const [view, label] of [['overview', 'overview'], ['monitor', 'monitor'], ['settings', 'settings']]) {
+  // 依次切到全部一级分区、各截一张并采集一次。
+  // 这些图同时可直接用于项目介绍视频素材。
+  for (const [view, label] of [
+    ['overview', 'overview'],
+    ['monitor', 'monitor'],
+    ['generate', 'generate'],
+    ['images', 'extensions'],
+    ['settings', 'settings']
+  ]) {
     try {
       await win.webContents.executeJavaScript(
         `(typeof switchView === 'function') ? switchView('${view}') : null`, true);
