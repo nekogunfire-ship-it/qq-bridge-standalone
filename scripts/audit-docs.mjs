@@ -269,9 +269,10 @@ for (const d of docs) {
 
 // 6) 孤儿文档：没有被任何文档引用（README 与自己是例外）
 //
-// `roles/*.md` 不算文档：它们是**角色设定数据**，由程序读取、本来就无需被文档引用。
+// `roles/*.md` 与 `prompts/*.md` 不算文档：它们是**运行时数据**，由程序读取、
+// 本来就无需被说明文档引用。
 // 把数据文件当"孤儿文档"报出来只会制造噪音。
-const ORPHAN_EXEMPT = [/^roles\/.+\.md$/, /^README\.md$/, /^desktop\/node_modules\//];
+const ORPHAN_EXEMPT = [/^roles\/.+\.md$/, /^prompts\/.+\.md$/, /^README\.md$/, /^desktop\/node_modules\//];
 for (const d of docs) {
   if (ORPHAN_EXEMPT.some((re) => re.test(d.rel))) continue;
   if (referenced.has(d.rel)) continue;
@@ -339,3 +340,4 @@ if (problems.unconfirmedPaths.length) {
 const REAL_BUCKETS = ['brokenPaths', 'brokenLinks', 'badNpm', 'orphanDocs', 'secrets', 'staleMarks'];
 const total = REAL_BUCKETS.reduce((a, k) => a + problems[k].length, 0);
 console.log(total === 0 ? '=== 文档审计通过：未发现问题 ===' : `=== 共 ${total} 处待处理 ===`);
+process.exitCode = total === 0 ? 0 : 1;

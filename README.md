@@ -28,8 +28,10 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [HANDOFF.md](HANDOFF.md) | **交接说明（给接手的 AI agent）**：当前状态、红线、架构地图、待办、协作方式 |
 | [docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md) | 项目说明书：架构、数据流、配置全解 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 开发环境、质量门禁与贡献流程 |
+| [SECURITY.md](SECURITY.md) | 安全支持范围、漏洞报告与安全基线 |
+| [docs/ENTERPRISE_AUDIT_2026-10-04.md](docs/ENTERPRISE_AUDIT_2026-10-04.md) | 企业级质量审查、修复与剩余风险 |
 | [docs/DSH_SETUP.md](docs/DSH_SETUP.md) | DSH 侧安装与配置（preset 部署、自检） |
 | [docs/SLANG.md](docs/SLANG.md) | 群聊黑话学习与「黑话命中唤醒」 |
 | [desktop/README.md](desktop/README.md) | 桌面版：启动方式、看门狗、卸载与配置入口、本机约束 |
@@ -40,6 +42,7 @@
 | [docs/RUNTIME-DIRECT.md](docs/RUNTIME-DIRECT.md) | **切换到 direct 运行时**：预检、配置、排障（不用装 DSH） |
 | [docs/AUDIT_REPORT_2026-09-18.md](docs/AUDIT_REPORT_2026-09-18.md) | 审查报告（历史记录） |
 | [docs/incident-2026-09-25-lone-surrogate-400.md](docs/incident-2026-09-25-lone-surrogate-400.md) | 事故复盘：孤立代理项导致整会话 400（历史记录） |
+| [docs/video-assets/v0.2.4/README.md](docs/video-assets/v0.2.4/README.md) | v0.2.4 项目介绍视频素材索引 |
 | [archive/one-off/README.md](archive/one-off/README.md) | 归档的一次性探针脚本，各自当年查了什么 |
 
 </details>

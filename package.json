@@ -95,7 +95,8 @@
     "test:uninstall-ownership": "node scripts/test-uninstall-ownership.mjs",
     "install:plan": "node tools/install-core.mjs --plan",
     "install:app": "node tools/install-core.mjs --apply",
-    "test:install": "node scripts/test-install-core.mjs"
+    "test:install": "node scripts/test-install-core.mjs",
+    "quality:ci": "npm run test:audit && npm run test:desktop && npm run test:runtime-direct && npm run test:mcp-tools && npm run test:v2-guardrails && npm run test-text-safety && npm run test-vision && npm run test-comfy-manager && npm run test:config-portability && npm run test:package && npm run docs:audit && npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.1",
@@ -107,5 +108,9 @@
   },
   "optionalDependencies": {
     "@deepseek-ai/dsh-host-apiproxy": "0.1.1-rc.2"
+  },
+  "overrides": {
+    "fast-uri": "3.1.8",
+    "ip-address": "10.7.3"
   }
 }

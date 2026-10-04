@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Windows quality gate
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Create fail-closed test configuration
+        shell: pwsh
+        run: Copy-Item -LiteralPath config.example.json -Destination config.json
+      - name: Run quality gate
+        run: npm run quality:ci
