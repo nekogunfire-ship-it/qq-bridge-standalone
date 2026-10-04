@@ -98,12 +98,21 @@ check('泄漏扫描对干净文件不误报',
   scanForLeaks([path.join('dist', '__leak-probe.txt')], fakeSecret).length === 0);
 fs.rmSync(tmpFile, { force: true });
 
-// ── 6. 真实隐私值收集非空（否则扫描形同虚设）───────────────────────────────
+// ── 6. 环境隐私值收集非空（真实 QQ 配置是可选项）──────────────────────────
+// CI 与首次安装环境只包含脱敏模板，不应为了测试而要求存在真实 QQ 号。
+// QQ 扫描能力已由上面的固定哨兵覆盖；这里验证当前环境可提供的用户名/主机名判据。
 const secrets = collectSecrets();
-check('收集到真实隐私值（扫描有实际判据）', secrets.length >= 3,
+check('收集到环境隐私值（扫描有实际判据）', secrets.length >= 2,
   `${secrets.length} 个：${secrets.map((s) => s.label).join('、')}`);
-check('隐私值里包含 QQ 号', secrets.some((s) => s.label === '你的 QQ 号'));
 check('隐私值里包含系统用户名', secrets.some((s) => s.label === '系统用户名'));
+check('隐私值里包含主机名', secrets.some((s) => s.label === '主机名'));
+
+const qqSecret = secrets.find((s) => s.label === '你的 QQ 号');
+if (qqSecret) {
+  check('已配置 QQ 号时会纳入隐私扫描', /^\d{5,12}$/.test(qqSecret.value));
+} else {
+  console.log('INFO 当前为脱敏/首次安装配置，无真实 QQ 号需要收集');
+}
 
 // ── 7. --plan 不产生任何产物 ────────────────────────────────────────────────
 const distDir = path.join(ROOT, 'dist');
