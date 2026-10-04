@@ -19,7 +19,9 @@ function check(name, ok, detail = '') {
 // ── 配置读取 ────────────────────────────────────────────────────────────────
 const cfg = readConfig(ROOT);
 check('能读到 config.json', cfg != null);
-check('config.json 含 ownerQQ', Boolean(cfg?.ownerQQ), cfg?.ownerQQ ? '已配置（不输出明文）' : '未配置');
+check('config.json 声明 ownerQQ 字段（公开模板允许为空）',
+  cfg != null && Object.prototype.hasOwnProperty.call(cfg, 'ownerQQ'),
+  cfg?.ownerQQ ? '本机已配置（不输出明文）' : '脱敏/首次安装状态');
 
 // ── 端口探测 ────────────────────────────────────────────────────────────────
 // ⚠️ **自己起监听来验，不要去探用户真实桥接的 3100** ——
