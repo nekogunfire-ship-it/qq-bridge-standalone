@@ -25,7 +25,10 @@ jobs:
           node-version: 22.13.0
           cache: npm
       - name: Install locked dependencies
-        run: npm ci
+        shell: pwsh
+        run: |
+          npm ci
+          npm ci --prefix desktop
       - name: Create fail-closed test configuration
         shell: pwsh
         run: Copy-Item -LiteralPath config.example.json -Destination config.json
