@@ -269,17 +269,28 @@ function execute(p, log = console.log) {
   const results = [];
   const rec = (step, ok, detail) => { results.push({ step, ok, detail }); log(`  ${ok ? '✅' : '⚠️ '} ${step}${detail ? ` — ${detail}` : ''}`); };
 
-  // 1) 复制（保留目标里已有的 config.json 与 state）
+  // 1) 复制程序文件。config.json / state / archive 已在 collectSourceFiles 中排除，
+  // 因而用户数据会保留；其余程序文件必须覆盖，确保重装/升级真正更新到新版本。
   const files = collectSourceFiles(p.source);
   let copied = 0;
-  const skippedExisting = [];
+  let updated = 0;
+  const copyFailures = [];
   for (const rel of files) {
     const to = path.join(p.target, rel);
-    if (fs.existsSync(to)) { skippedExisting.push(rel); continue; }
+    const existed = fs.existsSync(to);
     fs.mkdirSync(path.dirname(to), { recursive: true });
-    try { fs.copyFileSync(path.join(p.source, rel), to); copied += 1; } catch {}
+    try {
+      fs.copyFileSync(path.join(p.source, rel), to);
+      if (existed) updated += 1;
+      else copied += 1;
+    } catch (error) {
+      copyFailures.push(`${rel}: ${error?.message ?? error}`);
+    }
   }
-  rec('复制程序文件', true, `新复制 ${copied} 个，保留已有 ${skippedExisting.length} 个`);
+  rec('复制程序文件', copyFailures.length === 0,
+    copyFailures.length === 0
+      ? `新复制 ${copied} 个，更新 ${updated} 个；用户配置与状态未覆盖`
+      : `${copyFailures.length} 个文件失败：${copyFailures.slice(0, 3).join('；')}`);
 
   // 安装包里的 services.json 可能来自另一台机器；Node 路径与 HTA 必须按目标机/目标目录
   // 重新生成。第三方服务路径只在原值不存在时留给后续 setup 向导探测，避免覆盖已有安装。

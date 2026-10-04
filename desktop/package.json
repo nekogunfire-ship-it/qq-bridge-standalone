@@ -1,6 +1,6 @@
 {
   "name": "qq-bridge-desktop",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "description": "QQ 桥接桌面控制台：独立窗口 + 一键启停 + 自动检查 + 自动保存",
   "main": "main.mjs",

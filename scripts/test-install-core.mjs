@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readConfig } from '../desktop/lib/health.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = path.join(REPO, 'tools', 'install-core.mjs');
@@ -141,6 +142,7 @@ if (regExists(TEST_REG_PATH)) {
 fs.writeFileSync(path.join(TARGET, 'config.json'), '{"ownerQQ":"keep-me"}', 'utf8');
 fs.mkdirSync(path.join(TARGET, 'state'), { recursive: true });
 fs.writeFileSync(path.join(TARGET, 'state', 'bridge.log'), 'my history', 'utf8');
+fs.writeFileSync(path.join(TARGET, 'README.md'), 'stale program file', 'utf8');
 const reinstall = runTool([
   '--target', TARGET, '--apply', '--skip-npm',
   '--with-shortcuts', '--with-uninstall-entry', '--reg-key', TEST_REG_KEY
@@ -152,6 +154,12 @@ check('覆盖安装保留了 config.json', (() => {
   catch { return false; }
 })());
 check('覆盖安装保留了 state/', fs.existsSync(path.join(TARGET, 'state', 'bridge.log')));
+check('覆盖安装会更新旧程序文件',
+  fs.readFileSync(path.join(TARGET, 'README.md'), 'utf8') === fs.readFileSync(path.join(REPO, 'README.md'), 'utf8'));
+check('应用自身配置读取逻辑能自动读到上次保留的数据',
+  readConfig(TARGET)?.ownerQQ === 'keep-me');
+check('应用运行数据在重装后内容不变',
+  fs.readFileSync(path.join(TARGET, 'state', 'bridge.log'), 'utf8') === 'my history');
 
 // ── 5. 归属检查：注册表项登记的是别处时不得覆盖 ─────────────────────────────
 const other = path.join(SANDBOX, 'app2');
