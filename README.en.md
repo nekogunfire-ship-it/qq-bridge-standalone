@@ -19,7 +19,7 @@ Current version author and maintainer: [@nekogunfire-ship-it](https://github.com
 
 > Connect QQ messages to DeepSeek Harness (DSH) agents: QQ friends/groups become DSH conversations, and agent replies (including questions and tool approvals) are sent back to QQ.
 
-> ⚠️ **Current release `v0.2.4` supports DSH 0.1.5-rc.1 and can also run completely without DSH through Direct Runtime.** This release fixes image attachments being omitted from reserved2 wake-ups and keeps internal timeout/delivery errors out of QQ chats by default. The installer can optionally add DSH compatibility components, ComfyUI, and the SDXL image model.
+> ⚠️ **Current release `v0.2.5` supports DSH 0.1.5-rc.1 and can also run completely without DSH through Direct Runtime.** This release adds an in-app setup path from first launch through a real QQ message check, plus enterprise CI, dependency security gates, and documentation governance. The installer can optionally add DSH compatibility components, ComfyUI, and the SDXL image model.
 >
 > The default branch `main` **is** this version — a plain `git clone` gets it, no branch switching needed.
 
