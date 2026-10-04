@@ -1246,7 +1246,7 @@ function bindUninstall() {
     try {
       const r = await window.desktop.startUninstall();
       if (r?.ok) {
-        toast('已启动独立卸载程序，本应用即将退出…', 'warn', 3000);
+        toast('卸载将在后台完成，本应用即将退出…', 'warn', 3000);
       } else if (r?.cancelled) {
         toast('已取消卸载', 'info');
       } else {

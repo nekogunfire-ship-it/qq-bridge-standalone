@@ -785,10 +785,10 @@ function registerIpc() {
   //
   // 为什么是"交接"而不是在本进程里删：
   //   桌面应用自己就跑在 desktop/node_modules（Electron）里，**进程运行中无法删除自己的文件**。
-  //   根目录的 uninstall.bat 已经包含完整流程（提权 → 确认 → 执行 → 报告），
-  //   复用它既避免自删难题，也保证"界面卸载"与"独立卸载"走同一条审计过的路径。
+  //   GUI 已完成确认，因此交给静默包装器执行（后台提权，不重复询问、不显示控制台）。
+  //   独立双击 uninstall.bat 仍保留完整的交互式审计流程。
   ipcMain.handle('uninstall:start', async () => {
-    const bat = path.join(ROOT, 'uninstall.bat');
+    const bat = path.join(ROOT, 'uninstall-quiet.bat');
     if (!fs.existsSync(bat)) return { ok: false, error: `找不到卸载程序：${bat}` };
 
     const planResult = await new Promise((resolve) => {
@@ -815,7 +815,7 @@ function registerIpc() {
         '',
         '你的数据（state\\ 里 的对话历史 / 黑话库 / 表情、config.json）怎么处理？'
       ].filter(Boolean).join('\n')
-      : '将启动根目录的独立卸载程序（uninstall.bat）。\n\n你的数据（state\\ 与 config.json）怎么处理？';
+      : '确认后将在后台完成卸载。\n\n你的数据（state\\ 与 config.json）怎么处理？';
 
     const answer = await dialog.showMessageBox(mainWindow ?? undefined, {
       type: 'warning',
@@ -847,16 +847,16 @@ function registerIpc() {
     }
 
     try {
-      // uninstall.bat 自带提权；传模式参数让它不再重复询问数据去向
-      const child = spawn('cmd.exe', ['/c', 'start', '', bat, mode], {
+      // GUI 已经确认过；静默包装器只显示必要的 UAC，不再弹黑框或重复询问。
+      const child = spawn('cmd.exe', ['/d', '/c', 'call', bat, mode], {
         cwd: ROOT,
         detached: true,
         stdio: 'ignore',
-        windowsHide: false
+        windowsHide: true
       });
       child.unref();
-      dlog(`从界面发起卸载：mode=${mode}，随后退出应用（让独立卸载程序接管）`);
-      // 稍等片刻让新窗口起来，再退出自己 —— 否则用户会以为界面卡死
+      dlog(`从界面发起无感卸载：mode=${mode}，日志=%TEMP%\\qq-bridge-uninstall.log`);
+      // 稍等静默卸载器完成提权交接，再退出以释放 Electron 文件占用。
       setTimeout(() => { quitting = true; app.quit(); }, 1500);
       return { ok: true, mode };
     } catch (error) {

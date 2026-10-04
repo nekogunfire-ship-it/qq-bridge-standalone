@@ -70,6 +70,17 @@ check('UAC 重启会传递 GUI 预选的数据模式',
   /QB_UNINSTALL_MODE=%~1/.test(interactiveBat)
   && /ArgumentList \$a -Verb RunAs/.test(interactiveBat));
 
+const quietBat = fs.readFileSync(path.join(ROOT, 'uninstall-quiet.bat'), 'latin1');
+check('静默卸载支持 keep/archive/purge 三种数据模式',
+  /--keep-data/.test(quietBat) && /--archive-data/.test(quietBat) && /--purge-data/.test(quietBat));
+check('静默卸载不暂停、不要求键盘确认', !/^pause\s*$/im.test(quietBat) && !/set \/p/i.test(quietBat));
+check('静默卸载提权后的窗口保持隐藏', /-Verb RunAs -WindowStyle Hidden/.test(quietBat));
+check('静默卸载保留诊断日志', /qq-bridge-uninstall\.log/.test(quietBat));
+
+const desktopMain = fs.readFileSync(path.join(ROOT, 'desktop', 'main.mjs'), 'utf8');
+check('应用内卸载调用静默包装器',
+  /uninstall-quiet\.bat/.test(desktopMain) && /windowsHide:\s*true/.test(desktopMain));
+
 // ── 3. 卸载核心的 --json 输出（只读，不删东西）──────────────────────────────
 const jsonRun = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'uninstall-core.mjs'), '--json', '--keep-data'], {
   cwd: ROOT, encoding: 'utf8', windowsHide: true

@@ -446,7 +446,7 @@ qq-bridge/
   config.example.json   # 配置模板（真实 config.json 不入库）
   install.bat           # 安装程序（复制到安装目录 + 装依赖 + 建快捷方式 + 登记卸载项）
   uninstall.bat         # 独立卸载程序（提权 → 询问数据去向 → 执行）
-  uninstall-quiet.bat   # 静默卸载（保留数据与源码）
+  uninstall-quiet.bat   # 无感卸载（默认保留数据；支持 keep/archive/purge，日志写入 %TEMP%）
   docs/
     PROJECT_GUIDE.md    # 项目说明书（架构、数据流、配置全解）
     DSH_SETUP.md        # DSH 侧安装与配置
