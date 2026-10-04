@@ -429,7 +429,8 @@ function execute(p, log = console.log) {
         ['Publisher', 'REG_SZ', '本机自建'],
         ['InstallLocation', 'REG_SZ', p.target],
         ['UninstallString', 'REG_SZ', `"${uninstallBat}"`],
-        ['QuietUninstallString', 'REG_SZ', `cmd.exe /c ""${path.join(p.target, 'uninstall-quiet.bat')}""`],
+        ['QuietUninstallString', 'REG_SZ',
+          `powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "${path.join(p.target, 'tools', 'uninstall-silent.ps1')}" -Mode keep`],
         ['NoModify', 'REG_DWORD', '1'],
         ['NoRepair', 'REG_DWORD', '1']
       ];

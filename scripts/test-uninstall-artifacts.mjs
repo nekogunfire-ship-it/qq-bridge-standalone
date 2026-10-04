@@ -79,7 +79,17 @@ check('静默卸载保留诊断日志', /qq-bridge-uninstall\.log/.test(quietBat
 
 const desktopMain = fs.readFileSync(path.join(ROOT, 'desktop', 'main.mjs'), 'utf8');
 check('应用内卸载调用静默包装器',
-  /uninstall-quiet\.bat/.test(desktopMain) && /windowsHide:\s*true/.test(desktopMain));
+  /uninstall-silent\.ps1/.test(desktopMain) && /windowsHide:\s*true/.test(desktopMain));
+check('应用内无感卸载不再经过 cmd.exe',
+  !/spawn\('cmd\.exe',[\s\S]{0,200}uninstall/.test(desktopMain));
+
+const silentPs = fs.readFileSync(path.join(ROOT, 'tools', 'uninstall-silent.ps1'), 'utf8');
+check('PowerShell 静默工作器存在并隐藏提权窗口',
+  /Test-IsAdministrator/.test(silentPs)
+  && /-Verb RunAs -WindowStyle Hidden/.test(silentPs));
+check('PowerShell 静默工作器支持三种数据模式并写日志',
+  /archive/.test(silentPs) && /purge/.test(silentPs)
+  && /qq-bridge-uninstall\.log/.test(silentPs));
 
 // ── 3. 卸载核心的 --json 输出（只读，不删东西）──────────────────────────────
 const jsonRun = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'uninstall-core.mjs'), '--json', '--keep-data'], {
@@ -89,7 +99,7 @@ let plan = null;
 try { plan = JSON.parse(jsonRun.stdout ?? ''); } catch {}
 check('--json 输出可解析', Boolean(plan), plan ? `${plan.steps.length} 步` : (jsonRun.stderr ?? '').slice(0, 120));
 if (plan) {
-  check('计划含释放空间估算', typeof plan.freeingBytes === 'number' && plan.freeingBytes > 0,
+  check('计划含释放空间估算（已卸载环境允许为 0）', typeof plan.freeingBytes === 'number' && plan.freeingBytes >= 0,
     `${Math.round(plan.freeingBytes / 1048576)} MB`);
   check('计划第一步是停止服务', /停止服务/.test(plan.steps[0]?.title ?? ''), plan.steps[0]?.title);
   check('摘要含第三方清单', Array.isArray(plan.summary?.thirdParty), (plan.summary?.thirdParty ?? []).join('、'));

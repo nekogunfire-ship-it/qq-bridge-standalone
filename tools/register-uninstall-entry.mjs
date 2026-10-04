@@ -111,7 +111,7 @@ const values = [
   ['UninstallString', 'REG_SZ', `"${uninstallBat}"`],
   // 静默卸载：保留数据、保留源码 —— 不弹任何提问
   ['QuietUninstallString', 'REG_SZ',
-    `cmd.exe /c ""${path.join(ROOT, 'uninstall-quiet.bat')}""`],
+    `powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "${path.join(ROOT, 'tools', 'uninstall-silent.ps1')}" -Mode keep`],
   ['DisplayIcon', 'REG_SZ', icon ?? uninstallBat],
   // 不给「修改/修复」按钮：本软件没有安装程序，改配置请直接编辑 config.json
   ['NoModify', 'REG_DWORD', '1'],

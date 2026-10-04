@@ -788,8 +788,8 @@ function registerIpc() {
   //   GUI 已完成确认，因此交给静默包装器执行（后台提权，不重复询问、不显示控制台）。
   //   独立双击 uninstall.bat 仍保留完整的交互式审计流程。
   ipcMain.handle('uninstall:start', async () => {
-    const bat = path.join(ROOT, 'uninstall-quiet.bat');
-    if (!fs.existsSync(bat)) return { ok: false, error: `找不到卸载程序：${bat}` };
+    const silentScript = path.join(ROOT, 'tools', 'uninstall-silent.ps1');
+    if (!fs.existsSync(silentScript)) return { ok: false, error: `找不到卸载程序：${silentScript}` };
 
     const planResult = await new Promise((resolve) => {
       const core = path.join(ROOT, 'tools', 'uninstall-core.mjs');
@@ -847,15 +847,18 @@ function registerIpc() {
     }
 
     try {
-      // GUI 已经确认过；静默包装器只显示必要的 UAC，不再弹黑框或重复询问。
-      const child = spawn('cmd.exe', ['/d', '/c', 'call', bat, mode], {
+      // 直接使用隐藏的 PowerShell 静默工作器，完全绕开 cmd.exe / .bat 黑框。
+      const child = spawn('powershell.exe', [
+        '-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass',
+        '-File', silentScript, '-Mode', mode
+      ], {
         cwd: ROOT,
         detached: true,
         stdio: 'ignore',
         windowsHide: true
       });
       child.unref();
-      dlog(`从界面发起无感卸载：mode=${mode}，日志=%TEMP%\\qq-bridge-uninstall.log`);
+      dlog(`从界面发起无感卸载（PowerShell 后台工作器）：mode=${mode}，日志=%TEMP%\\qq-bridge-uninstall.log`);
       // 稍等静默卸载器完成提权交接，再退出以释放 Electron 文件占用。
       setTimeout(() => { quitting = true; app.quit(); }, 1500);
       return { ok: true, mode };
