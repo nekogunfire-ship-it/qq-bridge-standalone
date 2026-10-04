@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = path.join(REPO, 'tools', 'uninstall-core.mjs');
 const SANDBOX = path.join(os.tmpdir(), `qb-ownership-sandbox-${process.pid}`);
+const FAKE_DSH = path.join(SANDBOX, 'dshhome');
 const REG_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\qq-bridge-desktop';
 const TASKS = ['Bridge Watchdog', 'DSH Watchdog'];
 
@@ -71,6 +72,9 @@ fs.mkdirSync(path.join(SANDBOX, 'desktop', 'node_modules'), { recursive: true })
 fs.writeFileSync(path.join(SANDBOX, 'config.json'), '{"ownerQQ":"1"}', 'utf8');
 fs.mkdirSync(path.join(SANDBOX, 'state'), { recursive: true });
 fs.writeFileSync(path.join(SANDBOX, 'state', 'bridge.log'), 'log', 'utf8');
+const sharedPreset = path.join(FAKE_DSH, 'profiles', 'web', 'node_modules', '@local', 'dsh-qq-preset', 'index.js');
+fs.mkdirSync(path.dirname(sharedPreset), { recursive: true });
+fs.writeFileSync(sharedPreset, '// shared preset without an owned injection', 'utf8');
 
 // ── 桌面隔离 + 快照（2026-09-26 事故后补）────────────────────────────────────
 // 🔴 事故：本测试原本**没有覆盖 `USERPROFILE`** → `inventory()` 用真实的
@@ -91,7 +95,8 @@ console.log(`  （安全网）真实桌面 .lnk 数：${realDesktopBefore.length
 
 // ── 守卫：确认作用在沙箱 ────────────────────────────────────────────────────
 const planRun = spawnSync(process.execPath, [TOOL, '--root', SANDBOX, '--json', '--keep-data'], {
-  cwd: REPO, encoding: 'utf8', windowsHide: true, env: { ...process.env, USERPROFILE: FAKE_HOME }
+  cwd: REPO, encoding: 'utf8', windowsHide: true,
+  env: { ...process.env, USERPROFILE: FAKE_HOME, DSH_HOME: FAKE_DSH }
 });
 let plan = null;
 try { plan = JSON.parse(planRun.stdout ?? ''); } catch {}
@@ -108,7 +113,8 @@ check('计划里声明会跳过不属于本目录的任务',
 
 // ── 真跑 execute（非提权：任务删除本就无权，但我们断言的是"根本没去删"）────
 const execRun = spawnSync(process.execPath, [TOOL, '--root', SANDBOX, '--keep-data', '--execute', '--elevated-ok'], {
-  cwd: REPO, encoding: 'utf8', windowsHide: true, env: { ...process.env, USERPROFILE: FAKE_HOME }
+  cwd: REPO, encoding: 'utf8', windowsHide: true,
+  env: { ...process.env, USERPROFILE: FAKE_HOME, DSH_HOME: FAKE_DSH }
 });
 const execOut = (execRun.stdout ?? '') + (execRun.stderr ?? '');
 
@@ -139,6 +145,7 @@ check('执行报告里说明了跳过原因',
 // 沙箱自己的东西该删的删了（证明 execute 本身在工作，不是整个没跑）
 check('沙箱自己的 node_modules 已被删除（execute 确实执行了）',
   !fs.existsSync(path.join(SANDBOX, 'node_modules')));
+check('没有本安装 DSH 注入时保留共享 preset', fs.existsSync(sharedPreset));
 
 fs.rmSync(SANDBOX, { recursive: true, force: true });
 console.log('');

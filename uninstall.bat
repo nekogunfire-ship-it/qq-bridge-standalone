@@ -39,7 +39,10 @@ REM --------------------------------------------------------------------------
 net session >nul 2>&1
 if errorlevel 1 (
   echo Requesting administrator rights ^(UAC prompt^)...
-  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs" >nul 2>&1
+  REM Preserve the GUI-selected keep/archive/purge mode across UAC relaunch.
+  set "QB_UNINSTALL_SELF=%~f0"
+  set "QB_UNINSTALL_MODE=%~1"
+  powershell -NoProfile -Command "$a=@(); if($env:QB_UNINSTALL_MODE){$a+=$env:QB_UNINSTALL_MODE}; Start-Process -FilePath $env:QB_UNINSTALL_SELF -ArgumentList $a -Verb RunAs" >nul 2>&1
   if errorlevel 1 (
     echo.
     echo FAILED to elevate. Please right-click this file and choose

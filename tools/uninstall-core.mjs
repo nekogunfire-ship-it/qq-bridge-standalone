@@ -185,8 +185,9 @@ export function buildPlan(inv, { dataMode = 'keep', removeSource = false } = {})
   // 它们是按用户全局注册的，机器上有两份安装时无脑删会破坏另一份。
   // 在**计划阶段**就查出来，好让用户在按下确认前看到"哪些会被跳过"。
   const taskStates = inv.tasks.map((name) => ({ name, owner: taskOwner(name) }));
-  const myTasks = taskStates.filter((t) => t.owner !== 'other' && t.owner !== 'missing');
+  const myTasks = taskStates.filter((t) => t.owner === 'mine');
   const foreignTasks = taskStates.filter((t) => t.owner === 'other');
+  const unknownTasks = taskStates.filter((t) => t.owner === 'unknown');
   if (myTasks.length) {
     push('删除计划任务', `删除：${myTasks.map((t) => t.name).join('、')}`, 'remove');
   }
@@ -194,6 +195,11 @@ export function buildPlan(inv, { dataMode = 'keep', removeSource = false } = {})
     push('跳过他人的计划任务',
       `${foreignTasks.map((t) => t.name).join('、')}：指向另一份安装，不属于本次卸载目标（不动）`,
       'keep');
+  }
+  if (unknownTasks.length) {
+    push('跳过归属不明的计划任务',
+      `${unknownTasks.map((t) => t.name).join('、')}：无法确认动作路径，为避免误删而不动`,
+      'skip');
   }
 
   for (const nm of inv.nodeModules) {
@@ -222,7 +228,8 @@ export function buildPlan(inv, { dataMode = 'keep', removeSource = false } = {})
   push('注册表卸载项', '从「设置 → 应用」列表移除本程序条目', 'remove');
   push('第三方依赖（不动）', inv.thirdParty.filter((t) => t.exists).map((t) => t.label).join('、') || '无', 'keep');
 
-  const freeingBytes = steps.filter((s) => s.kind === 'remove' || s.kind === 'archive').reduce((a, b) => a + b.bytes, 0);
+  // 归档副本仍留在同一磁盘，不能算作释放空间。
+  const freeingBytes = steps.filter((s) => s.kind === 'remove').reduce((a, b) => a + b.bytes, 0);
   return { steps, dataMode, removeSource, freeingBytes };
 }
 
@@ -381,23 +388,23 @@ export function execute(plan, inv, log = console.log) {
     }
   }
 
-  // 3) 删除 preset 副本 —— 只在"注入确实是我们的"时才删。
+  // 3) 删除 preset 副本 —— 只在"本安装的注入刚刚成功摘除"时才删。
   // preset 位于 %DSH_HOME%/profiles/web/node_modules/@local/dsh-qq-preset，是**全局共享**的：
   // 若另一份安装仍挂着它的注入，删掉就会让那份安装的 DSH 侧失效。
   if (inv.dsh.presetExists) {
-    if (patchOwnedByOther) {
+    if (!patchRemoved) {
       results.push({
         step: '跳过删除 DSH preset',
         ok: true,
-        detail: 'DSH 注入属于另一份安装，它可能还在用这个 preset（不动）'
+        detail: patchOwnedByOther
+          ? 'DSH 注入属于另一份安装，它可能还在用这个 preset（不动）'
+          : '未确认并摘除本安装的 DSH 注入，无法证明 preset 归属（不动）'
       });
     } else {
       try { fs.rmSync(inv.dsh.presetDir, { recursive: true, force: true }); results.push({ step: '删除 DSH preset', ok: true }); }
       catch (e) { results.push({ step: '删除 DSH preset', ok: false, detail: String(e?.message ?? e) }); }
     }
   }
-  void patchRemoved;
-
   // 4) 快捷方式 —— **必须核实目标指向本 ROOT 才删**
   //    （`inventory` 只是按文件名粗筛；不核实就会误删用户桌面上同名的别家快捷方式，
   //      2026-09-26 真的把用户自己的 `QQ 桥接控制台.lnk` 删掉过一次）
@@ -421,19 +428,20 @@ export function execute(plan, inv, log = console.log) {
   // 只有确实指向本 ROOT 的才删，否则跳过并说明。
   for (const task of inv.tasks) {
     const owner = taskOwner(task);
-    if (owner === 'other') {
-      results.push({ step: `跳过计划任务 ${task}`, ok: true, detail: '它指向另一份安装，不属于本次卸载目标' });
-      continue;
-    }
-    if (owner === 'missing') {
-      results.push({ step: `计划任务 ${task}`, ok: true, detail: '不存在，无需删除' });
+    if (owner !== 'mine') {
+      const detail = owner === 'other'
+        ? '它指向另一份安装，不属于本次卸载目标'
+        : owner === 'missing'
+          ? '不存在，无需删除'
+          : '无法确认动作路径，为避免误删而不动';
+      results.push({ step: `${owner === 'missing' ? '' : '跳过'}计划任务 ${task}`, ok: true, detail });
       continue;
     }
     const r = run('schtasks.exe', ['/Delete', '/TN', task, '/F']);
     results.push({
       step: `删除计划任务 ${task}`,
       ok: r.ok,
-      detail: r.ok ? (owner === 'unknown' ? '（无法确认归属，按本项目任务处理）' : undefined) : r.out.slice(0, 120)
+      detail: r.ok ? undefined : r.out.slice(0, 120)
     });
   }
 
@@ -448,7 +456,11 @@ export function execute(plan, inv, log = console.log) {
         if (fs.statSync(d.path).isDirectory()) copyDirRecursive(d.path, target);
         else fs.copyFileSync(d.path, target);
       }
-      results.push({ step: '归档用户数据', ok: true, detail: dest });
+      // 所有项目都成功复制后才删除原数据，避免半份归档导致数据丢失。
+      for (const d of inv.userData.filter((x) => x.exists)) {
+        fs.rmSync(d.path, { recursive: true, force: true });
+      }
+      results.push({ step: '归档用户数据', ok: true, detail: `已归档到 ${dest}，原数据已删除` });
     } catch (e) {
       results.push({ step: '归档用户数据', ok: false, detail: `归档失败，已中止删除数据：${e?.message ?? e}` });
     }
@@ -581,7 +593,7 @@ function main() {
   console.log(`完成：${okCount}/${results.length} 步成功。`);
   console.log('第三方（SnowLuma / ComfyUI / DSH）未做改动，如需清理请自行处理。');
   if (!removeSource) console.log(`源码与 git 历史保留在 ${ROOT}（想一并删除请用 --remove-source）。`);
-  return 0;
+  return results.every((r) => r.ok) ? 0 : 1;
 }
 
 // 仅在直接执行时跑 CLI（被 import 时只导出函数）

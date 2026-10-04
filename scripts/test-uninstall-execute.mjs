@@ -59,9 +59,10 @@ mk(patchFile, [
 ].join('\n'));
 mk(path.join(FAKE_DSH, 'profiles', 'web', 'node_modules', '@local', 'dsh-qq-preset', 'index.js'), '// preset');
 
-// 假桌面：两个本项目的快捷方式 + 一个无关的（不应被删）
-mk(path.join(FAKE_HOME, 'Desktop', 'QQ 桥接控制台.lnk'), 'lnk');
-mk(path.join(FAKE_HOME, 'Desktop', '重启桥接并让画图工具生效.lnk'), 'lnk');
+// 假桌面：两个本项目的快捷方式 + 一个无关的（不应被删）。
+// 模拟 .lnk 内嵌目标路径，否则 fail-closed 的归属检查会正确地拒绝删除。
+mk(path.join(FAKE_HOME, 'Desktop', 'QQ 桥接控制台.lnk'), `lnk:${FAKE_REPO}\\start.bat`);
+mk(path.join(FAKE_HOME, 'Desktop', '重启桥接并让画图工具生效.lnk'), `lnk:${FAKE_REPO}\\restart.bat`);
 mk(path.join(FAKE_HOME, 'Desktop', 'Steam.lnk'), 'lnk');
 
 check('沙箱已搭建', fs.existsSync(FAKE_REPO) && fs.existsSync(FAKE_DSH) && fs.existsSync(FAKE_HOME));
@@ -143,6 +144,8 @@ check('卸载核心自身仍在（否则无法再运行）', fs.existsSync(path.
 check('执行报告列出了各步骤结果', /✅|⚠️/.test(out) && /完成：\d+\/\d+ 步成功/.test(out),
   (out.match(/完成：\d+\/\d+ 步成功/) ?? ['(未找到完成行)'])[0]);
 check('报告提示第三方未被改动', /第三方/.test(out));
+check('任一步失败时核心返回非零退出码，避免误报成功', run.status !== 0,
+  `status=${run.status}（沙箱故意不提供 launcher）`);
 
 // ── 6. purge 模式：数据应被删除 ─────────────────────────────────────────────
 const run2 = runCore(['--root', FAKE_REPO, '--purge-data', '--execute', '--elevated-ok']);
@@ -167,6 +170,8 @@ check('archive 模式：创建了 archive/uninstall-<时间戳>', archivedDirs.l
 check('archive 模式：数据已备份（不是直接销毁）',
   archivedDirs.some((d) => fs.existsSync(path.join(archiveRoot, d, 'state', 'social-v2.json'))),
   archivedDirs.map((d) => fs.readdirSync(path.join(archiveRoot, d)).join('+')).join(' / '));
+check('archive 模式：确认完整归档后删除原 state', !fs.existsSync(path.join(FAKE_REPO, 'state')));
+check('archive 模式：确认完整归档后删除原 config.json', !fs.existsSync(path.join(FAKE_REPO, 'config.json')));
 
 // ── 收尾 ────────────────────────────────────────────────────────────────────
 fs.rmSync(SANDBOX, { recursive: true, force: true });

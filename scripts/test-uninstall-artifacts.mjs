@@ -65,6 +65,11 @@ for (const f of ['uninstall.bat', 'uninstall-quiet.bat']) {
   check(`${f} 无裸 LF`, bareLf === 0, `裸 LF ${bareLf} 个`);
 }
 
+const interactiveBat = fs.readFileSync(path.join(ROOT, 'uninstall.bat'), 'latin1');
+check('UAC 重启会传递 GUI 预选的数据模式',
+  /QB_UNINSTALL_MODE=%~1/.test(interactiveBat)
+  && /ArgumentList \$a -Verb RunAs/.test(interactiveBat));
+
 // ── 3. 卸载核心的 --json 输出（只读，不删东西）──────────────────────────────
 const jsonRun = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'uninstall-core.mjs'), '--json', '--keep-data'], {
   cwd: ROOT, encoding: 'utf8', windowsHide: true

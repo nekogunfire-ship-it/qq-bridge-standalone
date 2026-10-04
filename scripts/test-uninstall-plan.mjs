@@ -44,7 +44,7 @@ check('keep 模式：数据步骤是「保留」而不是删除',
 check('archive 模式：数据步骤是「归档」', archive.steps.some((s) => s.kind === 'archive'));
 check('purge 模式：数据步骤是「删除」', purge.steps.some((s) => s.kind === 'remove' && /彻底删除用户数据/.test(s.title)));
 
-check('keep 释放空间最小（不释放数据体积）', keep.freeingBytes < archive.freeingBytes,
+check('archive 在同盘保留备份，不把用户数据误算为释放空间', keep.freeingBytes === archive.freeingBytes,
   `keep=${Math.round(keep.freeingBytes / 1048576)}MB archive=${Math.round(archive.freeingBytes / 1048576)}MB`);
 check('purge 释放空间 >= archive（归档只是移动，仍占盘）', purge.freeingBytes >= archive.freeingBytes);
 
