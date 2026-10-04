@@ -105,12 +105,20 @@ export async function healthCheck(root, options = {}) {
     const missing = [];
     if (!cfg.ownerQQ) missing.push('ownerQQ');
     if (!cfg.snowluma?.wsUrl) missing.push('snowluma.wsUrl');
+    const hasAllowTarget = Boolean(cfg.allowAllWhenEmpty)
+      || (cfg.allow?.private?.length ?? 0) > 0
+      || (cfg.allow?.groups?.length ?? 0) > 0;
+    if (!hasAllowTarget) missing.push('QQ 白名单');
     if (missing.length) {
       items.push(item('config', '配置文件', 'warn',
         `config.json 可读，但缺少关键项：${missing.join('、')}`,
-        [{ id: 'openConfig', label: '打开配置' }]));
+        [{ id: 'openConfig', label: '打开配置' }], {
+          setup: { ownerConfigured: Boolean(cfg.ownerQQ), allowConfigured: hasAllowTarget }
+        }));
     } else {
-      items.push(item('config', '配置文件', 'ok', `config.json 正常（ownerQQ ${maskAccount(cfg.ownerQQ)}）`));
+      items.push(item('config', '配置文件', 'ok', `config.json 正常（ownerQQ ${maskAccount(cfg.ownerQQ)}）`, [], {
+        setup: { ownerConfigured: true, allowConfigured: true }
+      }));
     }
   }
 

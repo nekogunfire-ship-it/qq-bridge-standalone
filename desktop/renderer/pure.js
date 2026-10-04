@@ -259,11 +259,40 @@
     return { text: lines.join('\n'), state: 'ok' };
   }
 
+  function buildOnboardingSteps(health) {
+    const byKey = new Map((health?.items ?? []).map((item) => [item.key, item]));
+    const config = byKey.get('config');
+    const runtime = byKey.get('runtime');
+    const gateway = byKey.get('snowluma');
+    const bridge = byKey.get('bridge');
+    const comfy = byKey.get('comfyui');
+    const imageModels = byKey.get('models');
+    const configDone = config?.status === 'ok';
+    const runtimeDone = runtime?.status === 'ok';
+    const gatewayDone = gateway?.status === 'ok';
+    const bridgeDone = bridge?.status === 'ok';
+    const done = [configDone, runtimeDone, gatewayDone, bridgeDone].filter(Boolean).length;
+    const stateFor = (complete, unlocked) => complete ? 'done' : (unlocked ? 'current' : 'blocked');
+    return {
+      done,
+      total: 4,
+      ready: done === 4,
+      steps: [
+        { key: 'config', title: '基础身份与白名单', detail: configDone ? '管理员 QQ、网关地址和放行范围已填写。' : (config?.detail ?? '创建配置并填写管理员 QQ、网关地址与至少一个白名单。'), state: stateFor(configDone, true), action: config?.actions?.some((a) => a.id === 'createConfig') ? 'createConfig' : 'openConfig', label: config?.actions?.some((a) => a.id === 'createConfig') ? '创建配置' : '打开配置' },
+        { key: 'runtime', title: '选择 AI 运行时', detail: runtimeDone ? 'Direct API 或 DSH 运行时配置完整。' : (runtime?.detail ?? '选择 Direct API 或 DSH，并完成连接测试。'), state: stateFor(runtimeDone, configDone), view: 'settings', label: '配置运行时' },
+        { key: 'snowluma', title: '登录 QQ 网关', detail: gatewayDone ? 'SnowLuma 的 HTTP / WebSocket 服务已监听。' : (gateway?.detail ?? '启动 SnowLuma，扫码登录 QQ，并开启 HTTP 与 WebSocket。'), state: stateFor(gatewayDone, configDone), action: 'startAll', label: '启动并检查' },
+        { key: 'bridge', title: '启动完整链路', detail: bridgeDone ? 'QQ 桥接在线，运行时状态可读取。' : (bridge?.detail ?? '启动桥接并确认所有必需服务正常。'), state: stateFor(bridgeDone, configDone && runtimeDone && gatewayDone), action: 'startAll', label: '一键启动' },
+        { key: 'verify', title: '发送测试消息', detail: done === 4 ? '现在从白名单 QQ 发一条消息，并在监测页确认收到与回复。' : '完成前四项后，用真实 QQ 消息做最终验收。', state: done === 4 ? 'current' : 'blocked', view: 'monitor', label: '打开监测' },
+        { key: 'images', title: '可选：本地出图', detail: comfy?.status === 'ok' && imageModels?.status !== 'warn' ? 'ComfyUI 已在线；检测到的模型预设可以使用。' : '按需安装或接入 ComfyUI 与图片模型；跳过不影响 QQ 聊天。', state: comfy?.status === 'ok' && imageModels?.status !== 'warn' ? 'done' : 'optional', view: 'images', label: '管理出图扩展' }
+      ]
+    };
+  }
+
   return {
     parseLifecycleLines, isLifecycleSuccess, friendlyAction,
     describeTriggers, convKindLabel, relTime,
     wakeModeLabel, wakeReasonLabel, describeMessage, escapeHtml,
     activityKind, parseActivityLines, filterActivity, ACTIVITY_FILTERS, ACTIVITY_KIND_LABEL,
-    MODEL_CUSTOM, buildModelOptions, describeDetection
+    MODEL_CUSTOM, buildModelOptions, describeDetection, buildOnboardingSteps
   };
 });

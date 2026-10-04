@@ -62,6 +62,21 @@
       <button id="guideAction" class="btn btn-primary" hidden>处理</button>
     </section>
 
+    <section class="panel onboarding-panel" aria-labelledby="onboardingTitle">
+      <div class="panel-head">
+        <div>
+          <span class="guide-kicker">首次使用路线</span>
+          <h2 id="onboardingTitle">从安装到可用</h2>
+        </div>
+        <span class="grow"></span>
+        <strong id="onboardingProgress" class="onboarding-progress">检查中…</strong>
+      </div>
+      <p class="muted small onboarding-intro">按顺序完成必需步骤；状态会随体检自动更新。出图环境是可选项，不会阻塞 QQ 聊天。</p>
+      <ol id="onboardingSteps" class="onboarding-steps" aria-live="polite">
+        <li class="onboarding-step" data-state="pending">正在读取配置状态…</li>
+      </ol>
+    </section>
+
     <section class="panel">
       <div class="panel-head">
         <h2>服务状态</h2>

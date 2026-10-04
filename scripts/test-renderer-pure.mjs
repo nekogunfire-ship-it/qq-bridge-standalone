@@ -60,6 +60,20 @@ check('看门狗动作带前缀说明',
 check('未知动作原样返回（不吞掉信息）', pure.friendlyAction('someNewAction') === 'someNewAction');
 check('空动作有兜底', pure.friendlyAction('') === '（未知动作）');
 
+// ── 首次配置路线图 ─────────────────────────────────────────────────────────
+const onboardingEmpty = pure.buildOnboardingSteps({ items: [] });
+check('首次配置路线包含四个必需阶段、最终验收和可选出图阶段',
+  onboardingEmpty.total === 4 && onboardingEmpty.steps.length === 6
+  && onboardingEmpty.steps[5].state === 'optional');
+check('没有任何状态时从基础配置开始，后续步骤保持锁定',
+  onboardingEmpty.steps[0].state === 'current' && onboardingEmpty.steps[1].state === 'blocked');
+const onboardingReady = pure.buildOnboardingSteps({ items: [
+  { key: 'config', status: 'ok' }, { key: 'runtime', status: 'ok' },
+  { key: 'snowluma', status: 'ok' }, { key: 'bridge', status: 'ok' }
+] });
+check('四项就绪后引导用户完成真实 QQ 消息验收',
+  onboardingReady.ready && onboardingReady.done === 4 && onboardingReady.steps[4].state === 'current');
+
 // ── 3. 会话 key → 人话 ──────────────────────────────────────────────────────
 check('群 key 转「群 号码」', pure.convKindLabel('group:200000002') === '群 200000002');
 check('私聊 key 转「私聊 号码」', pure.convKindLabel('private:1000000001') === '私聊 1000000001');

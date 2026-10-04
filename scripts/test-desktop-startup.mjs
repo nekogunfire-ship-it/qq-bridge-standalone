@@ -7,6 +7,7 @@
 // 做法：用 --check 模式真实执行 start.mjs 的环境校验与目录准备（不拉起 Electron），
 // 断言它退出码为 0 且输出里包含预期信息。
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -24,7 +25,9 @@ check('start.mjs 存在', fs.existsSync(START));
 
 // 主动放一个假的缓存目录 + 文件，用真实执行来验证「启动前清缓存」这一步真的会清。
 // （不能断言"缓存目录不存在" —— Electron 运行时自己会重建它们，那样断言必然失败。）
-const userData = path.join(ROOT, 'state', 'electron-profile');
+// 使用独立临时目录：真实桌面实例可能正在占用项目内 profile，测试不应触碰用户状态，
+// 也不应因为 Chromium 写下的 ACL / 文件锁而产生偶发失败。
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'qb-desktop-startup-'));
 const fakeCacheDir = path.join(userData, 'GPUPersistentCache');
 const fakeCacheFile = path.join(fakeCacheDir, 'marker.txt');
 let seeded = false;
@@ -39,7 +42,8 @@ check('已预置假缓存用于验证清理', seeded && fs.existsSync(fakeCacheF
 const r = spawnSync(process.execPath, [START, '--check'], {
   cwd: path.join(ROOT, 'desktop'),
   encoding: 'utf8',
-  timeout: 30_000
+  timeout: 30_000,
+  env: { ...process.env, QB_USER_DATA_DIR: userData }
 });
 const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
 
@@ -49,8 +53,8 @@ check('未出现 ReferenceError 等 JS 运行期错误',
   !/ReferenceError|TypeError|is not defined/.test(out),
   /ReferenceError|TypeError|is not defined/.test(out) ? out.trim().split('\n')[0] : '干净');
 check('打印了仓库根目录', /仓库根目录: .+qq-bridge/.test(out));
-check('打印了 userData 路径且位于仓库内',
-  /userData: .*state[\\/]electron-profile/.test(out),
+check('打印了本次隔离的 userData 路径',
+  out.includes(`[desktop] userData: ${userData}`),
   (out.match(/userData: (.*)/) ?? [])[1]?.trim() ?? '(未找到)');
 check('确认 --check 模式不会拉起 Electron', /未拉起 Electron/.test(out));
 
@@ -62,4 +66,5 @@ check('清理动作有记录在输出里', /已清理缓存目录/.test(out),
 
 console.log('');
 console.log(failures === 0 ? '=== start.mjs 冒烟测试通过 ===' : `=== ${failures} 项失败 ===`);
+try { fs.rmSync(userData, { recursive: true, force: true }); } catch {}
 process.exit(failures === 0 ? 0 : 1);

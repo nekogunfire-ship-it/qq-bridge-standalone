@@ -25,6 +25,7 @@ function toast(message, kind = 'info', ms = 4200) {
 // ── 体检渲染 ────────────────────────────────────────────────────────────────
 const STATE_LABEL = { ok: '正常', warn: '注意', error: '异常', off: '未运行' };
 const OVERALL_TEXT = { ok: '全部正常', degraded: '部分异常', error: '有服务异常', checking: '检查中…' };
+const { buildOnboardingSteps } = window.RendererPure;
 
 // 卡片上的快捷按钮 → 动作
 const ACTION_HANDLERS = {
@@ -150,6 +151,40 @@ function renderGuide(health) {
   }
 }
 
+function renderOnboarding(health) {
+  const model = buildOnboardingSteps(health);
+  $('onboardingProgress').textContent = model.ready
+    ? '必需配置 4/4 · 请完成消息验收'
+    : `必需配置 ${model.done}/${model.total}`;
+  const list = $('onboardingSteps');
+  list.innerHTML = '';
+  for (const [index, step] of model.steps.entries()) {
+    const li = document.createElement('li');
+    li.className = 'onboarding-step';
+    li.dataset.state = step.state;
+    const head = document.createElement('div');
+    head.className = 'onboarding-step-head';
+    const mark = document.createElement('span');
+    mark.className = 'onboarding-step-mark';
+    mark.textContent = step.state === 'done' ? '✓' : String(index + 1);
+    const title = document.createElement('span');
+    title.textContent = step.title;
+    head.append(mark, title);
+    const detail = document.createElement('p');
+    detail.textContent = step.detail;
+    const button = document.createElement('button');
+    button.className = `btn btn-small${step.state === 'current' ? ' btn-primary' : ''}`;
+    button.textContent = step.state === 'done' ? '已完成' : step.label;
+    button.disabled = step.state === 'done';
+    button.addEventListener('click', () => {
+      if (step.view) switchView(step.view);
+      else ACTION_HANDLERS[step.action]?.();
+    });
+    li.append(head, detail, button);
+    list.appendChild(li);
+  }
+}
+
 function renderHealth(health) {
   const pill = $('overallPill');
   pill.dataset.state = health.overall;
@@ -159,6 +194,7 @@ function renderHealth(health) {
     : '';
   syncDshUi(health);
   renderGuide(health);
+  renderOnboarding(health);
 
   const grid = $('healthGrid');
   grid.innerHTML = '';

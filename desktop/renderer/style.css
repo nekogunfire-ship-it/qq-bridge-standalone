@@ -620,9 +620,10 @@ html, body {
 }
 #viewOverview > .panel:nth-child(1),
 #viewOverview > .panel:nth-child(2),
-#viewOverview > .panel:nth-child(3) { grid-column: 1 / -1; }
-#viewOverview > .panel:nth-child(4),
-#viewOverview > .panel:nth-child(5) { min-height: 220px; }
+#viewOverview > .panel:nth-child(3),
+#viewOverview > .panel:nth-child(4) { grid-column: 1 / -1; }
+#viewOverview > .panel:nth-child(5),
+#viewOverview > .panel:nth-child(6) { min-height: 220px; }
 
 .guide-panel {
   display: flex;
@@ -651,12 +652,30 @@ html, body {
 .guide-copy h2 { margin: 1px 0 2px; font-size: 15px; color: var(--text); }
 .guide-copy p { margin: 0; color: var(--text-dim); font-size: 12.5px; }
 .guide-panel > .btn { flex: none; }
+.onboarding-panel { grid-column: 1 / -1; }
+.onboarding-panel .panel-head > div h2 { margin: 2px 0 0; }
+.onboarding-progress { color: var(--accent); font-size: 13px; }
+.onboarding-intro { margin: 8px 0 12px; }
+.onboarding-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.onboarding-step { min-width: 0; padding: 11px; border: 1px solid var(--border); border-radius: 10px; background: rgba(15, 23, 38, .62); }
+.onboarding-step[data-state="done"] { border-color: rgba(56, 211, 159, .42); }
+.onboarding-step[data-state="current"] { border-color: rgba(91, 157, 255, .68); box-shadow: inset 0 0 0 1px rgba(91, 157, 255, .16); }
+.onboarding-step[data-state="blocked"] { border-color: rgba(255, 107, 107, .42); }
+.onboarding-step[data-state="optional"] { border-style: dashed; }
+.onboarding-step-head { display: flex; gap: 7px; align-items: center; margin-bottom: 5px; font-size: 12px; font-weight: 650; }
+.onboarding-step-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: 0 0 auto; border-radius: 50%; background: #1d2a40; color: var(--text-mute); }
+.onboarding-step[data-state="done"] .onboarding-step-mark { background: rgba(56, 211, 159, .16); color: var(--ok); }
+.onboarding-step[data-state="current"] .onboarding-step-mark { background: rgba(91, 157, 255, .18); color: var(--accent); }
+.onboarding-step[data-state="optional"] .onboarding-step-mark { background: rgba(244, 191, 79, .13); color: var(--warn); }
+.onboarding-step p { min-height: 42px; margin: 0 0 8px; font-size: 11px; line-height: 1.45; color: var(--text-mute); }
+.onboarding-step .btn { width: 100%; }
 
 @media (max-width: 1120px) {
   .brand { min-width: 178px; }
   .titlebar { gap: 10px; padding-inline: 14px; }
   .actions .btn { padding-inline: 10px; }
   .setup-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .onboarding-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 1040px) {
@@ -686,6 +705,7 @@ html, body {
   .settings-grid { grid-template-columns: 1fr; }
   .settings-grid > .panel:first-child { grid-column: auto; }
   .setup-grid { grid-template-columns: 1fr; }
+  .onboarding-steps { grid-template-columns: 1fr; }
 }
 
 /* 最窄窗口把活动流的会话列收起，时间和正文仍完整保留。 */
