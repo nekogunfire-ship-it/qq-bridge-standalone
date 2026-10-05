@@ -139,8 +139,28 @@ check('开始菜单含「卸载」入口', fs.existsSync(sbMenu) && fs.readdirSy
 check('桌面快捷方式带「以管理员身份运行」位', (() => {
   const lnk = path.join(sbDesktop, 'QQ 桥接控制台.lnk');
   if (!fs.existsSync(lnk)) return false;
-  const buf = fs.readFileSync(lnk);
-  return (buf[0x15] & 0x20) !== 0;
+  // Windows Shell/安全扫描可能在 CreateShortcut 返回后短暂持有 .lnk；重试读取，
+  // 避免把几十毫秒的 EPERM 误判成安装失败。
+  for (let i = 0; i < 20; i += 1) {
+    try {
+      const buf = fs.readFileSync(lnk);
+      return (buf[0x15] & 0x20) !== 0;
+    } catch (error) {
+      if (error?.code !== 'EPERM') return false;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  }
+  return false;
+})());
+
+check('桌面启动快捷方式使用 WScript 隐藏引导器（不产生 Node 黑窗）', (() => {
+  const lnk = path.join(sbDesktop, 'QQ 桥接控制台.lnk');
+  if (!fs.existsSync(lnk)) return false;
+  const script = `$s=(New-Object -ComObject WScript.Shell).CreateShortcut('${lnk.replace(/'/g, "''")}'); $v=$s.TargetPath + '|' + $s.Arguments; [Runtime.InteropServices.Marshal]::ReleaseComObject($s) | Out-Null; Write-Output $v`;
+  const result = runDecoded('powershell.exe', ['-NoProfile', '-Command', script]);
+  return /wscript\.exe/i.test(result.out)
+    && /start-hidden\.vbs/i.test(result.out)
+    && /desktop[\\/]start\.mjs/i.test(result.out);
 })());
 
 // 3d. 注册表（一次性测试键名）

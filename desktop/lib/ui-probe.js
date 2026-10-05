@@ -248,6 +248,19 @@ export async function runUiProbe(win, { root, log = () => {} }) {
     await shot(label);
   }
 
+  // 常用窗口及最小窗口验证；使用真实渲染器检查每个一级页面。
+  for (const [width, height] of [[1180, 780], [820, 600]]) {
+    win.setSize(width, height);
+    for (const view of ['overview', 'monitor', 'generate', 'images', 'settings']) {
+      await win.webContents.executeJavaScript(`switchView('${view}')`, true);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await collect(`${view}-${width}`);
+    }
+    await win.webContents.executeJavaScript("switchView('overview')", true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await shot(`overview-${width}`);
+  }
+
   // 报告：JSON 给程序看，TXT 给人（和 AI）看
   fs.writeFileSync(path.join(dir, 'report.json'), JSON.stringify(report, null, 2), 'utf8');
   const lines = [];

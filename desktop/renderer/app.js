@@ -7,6 +7,31 @@ let settings = null;
 let busy = false;
 let autoTimer = null;
 let comfySetupTimer = null;
+let mascotFeedbackTimer = null;
+let mascotHideTimer = null;
+let monitorRefreshing = false;
+let viewTransitionSeq = 0;
+
+function showMascotFeedback(message, kind = 'info') {
+  const box = $('mascotFeedback');
+  const text = $('mascotFeedbackText');
+  if (!box || !text) return;
+  const short = String(message ?? '').replace(/[（(].*$/, '').slice(0, 24) || '收到';
+  text.textContent = short;
+  box.dataset.kind = kind;
+  clearTimeout(mascotHideTimer);
+  box.classList.remove('mascot-feedback-out');
+  box.hidden = false;
+  box.classList.remove('mascot-feedback-in');
+  void box.offsetWidth;
+  box.classList.add('mascot-feedback-in');
+  clearTimeout(mascotFeedbackTimer);
+  mascotFeedbackTimer = setTimeout(() => {
+    box.classList.remove('mascot-feedback-in');
+    box.classList.add('mascot-feedback-out');
+    mascotHideTimer = setTimeout(() => { box.hidden = true; box.classList.remove('mascot-feedback-out'); }, 220);
+  }, kind === 'error' ? 3600 : 2200);
+}
 
 // ── Toast ───────────────────────────────────────────────────────────────────
 function toast(message, kind = 'info', ms = 4200) {
@@ -15,6 +40,7 @@ function toast(message, kind = 'info', ms = 4200) {
   el.dataset.kind = kind;
   el.textContent = message;
   $('toasts').appendChild(el);
+  showMascotFeedback(message, kind);
   setTimeout(() => {
     el.style.transition = 'opacity .25s';
     el.style.opacity = '0';
@@ -323,6 +349,7 @@ function hideProgress() {
 
 function setBusy(isBusy, note) {
   busy = isBusy;
+  document.body.dataset.busy = isBusy ? 'true' : 'false';
   for (const id of ['btnStart', 'btnStop', 'btnRestart', 'btnRestartBridge', 'btnCheck']) {
     $(id).disabled = isBusy;
   }
@@ -404,7 +431,9 @@ async function refreshBilling(force = false) {
 
 function scheduleAutoCheck(seconds) {
   if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
-  if (seconds > 0) autoTimer = setInterval(refresh, seconds * 1000);
+  if (seconds > 0) autoTimer = setInterval(() => {
+    if (!document.hidden) refresh().catch(() => {});
+  }, seconds * 1000);
 }
 
 async function saveSetting(patch) {
@@ -494,13 +523,35 @@ function bindActions() {
 // 现改为**打开独立窗口**（控制台作为顶层页面加载）—— 上述限制全部不存在，
 // 也能与管理窗口并排使用。因此这里不再需要加载 iframe 的逻辑。
 function switchView(view) {
+  const views = { overview: 'viewOverview', monitor: 'viewMonitor', generate: 'viewGenerate', images: 'viewImages', settings: 'viewSettings' };
+  if (!views[view]) return;
   for (const tab of document.querySelectorAll('.tab')) {
     tab.setAttribute('aria-selected', String(tab.dataset.view === view));
   }
-  const views = { overview: 'viewOverview', monitor: 'viewMonitor', generate: 'viewGenerate', images: 'viewImages', settings: 'viewSettings' };
-  for (const [name, id] of Object.entries(views)) {
-    const el = $(id);
-    if (el) el.hidden = name !== view;
+  const target = $(views[view]);
+  const current = Object.values(views).map($).find((el) => el && !el.hidden);
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const seq = ++viewTransitionSeq;
+  const reveal = () => {
+    if (seq !== viewTransitionSeq) return;
+    for (const id of Object.values(views)) {
+      const el = $(id);
+      if (!el) continue;
+      el.hidden = el !== target;
+      el.classList.remove('view-fade-out', 'view-fade-in');
+    }
+    target.hidden = false;
+    if (!reduceMotion && current !== target) {
+      void target.offsetWidth;
+      target.classList.add('view-fade-in');
+    }
+  };
+  if (current && current !== target && !reduceMotion) {
+    current.classList.remove('view-fade-in');
+    current.classList.add('view-fade-out');
+    setTimeout(reveal, 145);
+  } else {
+    reveal();
   }
   // 进度条只在总览有意义（其他页看不到它，留着会让人以为卡住）
   if (view !== 'overview') $('progressBar').hidden = true;
@@ -509,7 +560,9 @@ function switchView(view) {
   if (view === 'generate') refreshImageWorkbench().catch(() => {});
   if (view === 'images') {
     refreshComfySetup().catch(() => {});
-    if (!comfySetupTimer) comfySetupTimer = setInterval(() => refreshComfySetup().catch(() => {}), 1000);
+    if (!comfySetupTimer) comfySetupTimer = setInterval(() => {
+      if (!document.hidden) refreshComfySetup().catch(() => {});
+    }, 3000);
   } else if (comfySetupTimer) {
     clearInterval(comfySetupTimer);
     comfySetupTimer = null;
@@ -1109,7 +1162,7 @@ function renderModeStrip(info) {
     const el = document.createElement('span');
     el.className = 'chip';
     if (state) el.dataset.state = state;
-    el.innerHTML = `<span class="chip-label">${label}</span><span class="chip-value">${value}</span>`;
+    el.innerHTML = `<span class="chip-label">${escapeHtml(String(label))}</span><span class="chip-value">${escapeHtml(String(value))}</span>`;
     return el;
   };
   // 状态条里的"引擎"芯片要跟着**正在跑的**运行时走：
@@ -1129,6 +1182,8 @@ function renderModeStrip(info) {
 }
 
 async function refreshMonitor() {
+  if (monitorRefreshing) return;
+  monitorRefreshing = true;
   const status = $('monStatus');
   try {
     const [states, activity] = await Promise.all([
@@ -1144,9 +1199,11 @@ async function refreshMonitor() {
     renderModeStrip(activity);
     if (!monitorPaused) renderActivity(activity.activity);
     if (states.ok) renderConversations(states.conversations ?? []);
-    else $('monList').innerHTML = `<p class="muted small">读不到会话状态：${states.error ?? ''}</p>`;
+    else $('monList').textContent = `读不到会话状态：${states.error ?? ''}`;
   } catch (error) {
     status.textContent = `刷新失败：${error?.message ?? error}`;
+  } finally {
+    monitorRefreshing = false;
   }
 }
 
@@ -1161,7 +1218,7 @@ async function showConvMessages(key) {
   $('monDetailBody').innerHTML = '<p class="muted small">读取中…</p>';
   try {
     const r = await window.desktop.monitorRecent(key, 30);
-    if (!r.ok) { $('monDetailBody').innerHTML = `<p class="muted small">读取失败：${r.error ?? ''}</p>`; return; }
+    if (!r.ok) { $('monDetailBody').textContent = `读取失败：${r.error ?? ''}`; return; }
     const msgs = r.messages ?? [];
     if (!msgs.length) { $('monDetailBody').innerHTML = '<p class="muted small">该会话暂无缓存消息。</p>'; return; }
 
@@ -1175,7 +1232,7 @@ async function showConvMessages(key) {
     }).join('');
     $('monDetailBody').innerHTML = html;
   } catch (error) {
-    $('monDetailBody').innerHTML = `<p class="muted small">读取失败：${error?.message ?? error}</p>`;
+    $('monDetailBody').textContent = `读取失败：${error?.message ?? error}`;
   }
 }
 
@@ -1194,8 +1251,12 @@ function bindMonitor() {
     $('monDetail').hidden = true;
     selectedConvKey = null;
   });
-  // 每 5 秒刷新；即使切到别的分区也继续跑（切回来时数据是热的），但暂停时不刷新
-  monitorTimer = setInterval(() => { if (!monitorPaused) refreshMonitor().catch(() => {}); }, 5000);
+  // 总览仍需要状态条；其他分区和隐藏窗口不拉取监测数据。
+  monitorTimer = setInterval(() => {
+    if (!document.hidden && !monitorPaused && (!$('viewMonitor').hidden || !$('viewOverview').hidden)) {
+      refreshMonitor().catch(() => {});
+    }
+  }, 5000);
 }
 
 async function openConsoleWindow() {
@@ -1218,6 +1279,22 @@ function bindTabs() {
   $('btnOpenConsoleWindow').addEventListener('click', openConsoleWindow);
   $('btnEmbedBrowser').addEventListener('click', () => {
     window.desktop.openConsole().then(() => toast('已在浏览器打开控制台', 'ok'));
+  });
+}
+
+function bindInteractionFeedback() {
+  document.addEventListener('pointerdown', (event) => {
+    const target = event.target.closest('.btn, .tab');
+    if (!target || target.disabled) return;
+    const rect = target.getBoundingClientRect();
+    const ripple = document.createElement('span');
+    ripple.className = 'ui-ripple';
+    const size = Math.max(rect.width, rect.height) * 1.4;
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
+    ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
+    target.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 560);
   });
 }
 
@@ -1320,12 +1397,15 @@ async function refreshOverviewEvents() {
         + `<span class="muted small">${escapeHtml(e.message.replace(/^结束（|）$/g, ''))}</span></li>`;
     }).join('');
   } catch (error) {
-    box.innerHTML = `<li class="muted small">读取时间线失败：${error?.message ?? error}</li>`;
+    box.textContent = `读取时间线失败：${error?.message ?? error}`;
   }
 }
 
 // ── 初始化 ──────────────────────────────────────────────────────────────────
 (async function init() {
+  const syncVisibility = () => { document.body.dataset.suspended = String(document.hidden); };
+  document.addEventListener('visibilitychange', syncVisibility);
+  syncVisibility();
   bindActions();
   bindSettings();
   bindTabs();
@@ -1335,6 +1415,7 @@ async function refreshOverviewEvents() {
   bindRuntime();
   bindComfySetup();
   bindImageWorkbench();
+  bindInteractionFeedback();
 
   try {
     const info = await window.desktop.info();

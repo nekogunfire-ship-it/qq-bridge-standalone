@@ -115,9 +115,18 @@ function collectSourceFiles(source) {
 }
 
 // ── 快捷方式（用 PowerShell 的 WScript.Shell；无第三方依赖）──────────────────
-// 关键：桌面版快捷方式必须指向 `node.exe <target>\desktop\start.mjs`，
-// **不能**直接指向 electron.exe（会绕过 start.mjs 的缓存清理与 userData 指定）。
+// 关键：桌面版快捷方式必须经过 `start.mjs`，不能直接指向 electron.exe。
+// 同时也不能直接把 node.exe 当快捷方式目标：WindowStyle=7 只是最小化控制台，
+// 仍会留下黑窗/任务栏按钮。由 WScript 转交给 Node，Electron GUI 照常显示。
 function psQuote(s) { return `'${String(s).replace(/'/g, "''")}'`; }
+
+function hiddenNodeShortcut(nodeExe, startMjs, workDir) {
+  const wrapper = path.join(path.dirname(startMjs), 'start-hidden.vbs');
+  return {
+    targetPath: path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'wscript.exe'),
+    arguments: `"${wrapper}" "${nodeExe}" "${startMjs}" "${workDir}"`
+  };
+}
 
 function createShortcut({ lnkPath, targetPath, arguments: args, workDir, iconPath, runAsAdmin, description }) {
   const script = [
@@ -131,6 +140,8 @@ function createShortcut({ lnkPath, targetPath, arguments: args, workDir, iconPat
     description ? `$lnk.Description = ${psQuote(description)}` : null,
     '$lnk.WindowStyle = 7',   // 最小化，避免 cmd 黑框闪出
     '$lnk.Save()',
+    '[Runtime.InteropServices.Marshal]::ReleaseComObject($lnk) | Out-Null',
+    runAsAdmin ? `$bytes = [System.IO.File]::ReadAllBytes(${psQuote(lnkPath)}); $bytes[0x15] = $bytes[0x15] -bor 0x20; [System.IO.File]::WriteAllBytes(${psQuote(lnkPath)}, $bytes)` : null,
     'Write-Output "SAVED"'
   ].filter(Boolean).join('; ');
   const r = runDecoded('powershell.exe', ['-NoProfile', '-Command', script]);
@@ -138,18 +149,8 @@ function createShortcut({ lnkPath, targetPath, arguments: args, workDir, iconPat
     return { ok: false, error: (r.out || '创建快捷方式失败').slice(0, 200) };
   }
 
-  // RunAsAdmin 位：WScript.Shell 不暴露该属性，只能改 .lnk 二进制头
-  // （LinkFlags 在 offset 0x14 起 4 字节，RunAsAdmin = offset 0x15 的 bit5 即 0x20）。
-  // 本机 electron.exe 必须提权才能跑，桌面版快捷方式需要它。
-  if (runAsAdmin) {
-    try {
-      const buf = fs.readFileSync(lnkPath);
-      buf[0x15] |= 0x20;
-      fs.writeFileSync(lnkPath, buf);
-    } catch (e) {
-      return { ok: false, error: `快捷方式已建，但设置「以管理员身份运行」失败：${e?.message ?? e}` };
-    }
-  }
+  // RunAsAdmin 位已在同一个 PowerShell 进程中、释放 COM 句柄后写入。
+  // 避免 CreateShortcut 的文件句柄尚未完全释放时 Node 立即读写造成 EPERM。
   return { ok: true };
 }
 
@@ -233,7 +234,7 @@ function shortcutPlan(p) {
   return [
     {
       title: '创建桌面快捷方式',
-      detail: `${desktopLnk} → node.exe <目标>\\desktop\\start.mjs（最小化 + 以管理员身份运行）`,
+      detail: `${desktopLnk} → wscript.exe → node.exe <目标>\\desktop\\start.mjs（无控制台窗口 + 以管理员身份运行）`,
       kind: 'action'
     },
     {
@@ -378,6 +379,7 @@ function execute(p, log = console.log) {
   if (has('--with-shortcuts')) {
     const nodeExe = process.execPath;
     const startMjs = path.join(p.target, 'desktop', 'start.mjs');
+    const desktopLaunch = hiddenNodeShortcut(nodeExe, startMjs, p.target);
     const icon = ['assets/dsh.ico', 'assets/deepseek娘.png']
       .map((f) => path.join(p.target, f)).find((f) => fs.existsSync(f));
 
@@ -391,8 +393,8 @@ function execute(p, log = console.log) {
       fs.mkdirSync(p.desktopDir, { recursive: true });
       const r = createShortcut({
         lnkPath: desktopLnk,
-        targetPath: nodeExe,
-        arguments: `"${startMjs}"`,
+        targetPath: desktopLaunch.targetPath,
+        arguments: desktopLaunch.arguments,
         workDir: p.target,
         iconPath: icon,
         runAsAdmin: true,
@@ -415,7 +417,7 @@ function execute(p, log = console.log) {
       for (const e of entries) {
         const lnk = path.join(menuDir, e.name);
         const r = e.node
-          ? createShortcut({ lnkPath: lnk, targetPath: nodeExe, arguments: `"${startMjs}"`, workDir: p.target, iconPath: icon, runAsAdmin: true, description: 'QQ 桥接控制台' })
+          ? createShortcut({ lnkPath: lnk, targetPath: desktopLaunch.targetPath, arguments: desktopLaunch.arguments, workDir: p.target, iconPath: icon, runAsAdmin: true, description: 'QQ 桥接控制台' })
           : createShortcut({ lnkPath: lnk, targetPath: e.bat, workDir: p.target, iconPath: icon, runAsAdmin: e.name.includes('卸载'), description: e.name.replace('.lnk', '') });
         if (r.ok) { made += 1; marker.created.shortcuts.push(lnk); }
       }
@@ -518,6 +520,10 @@ function main() {
   const okCount = results.filter((r) => r.ok).length;
   console.log('');
   console.log(`安装完成：${okCount}/${results.length} 步成功。`);
+  if (okCount !== results.length) {
+    console.error('安装未完整完成，请处理上方失败步骤后重试。');
+    return 1;
+  }
   console.log('');
   console.log('首次配置已自动处理；若仍有缺失项，桌面应用总览会继续引导。');
   console.log(`  启动服务：powershell -ExecutionPolicy Bypass -File "${path.join(p.target, 'tools', 'qq-bridge-launcher.ps1')}" -Action startAll`);

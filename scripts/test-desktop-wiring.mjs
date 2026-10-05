@@ -21,6 +21,8 @@ const html = read('desktop/renderer/index.html');
 const appJs = read('desktop/renderer/app.js');
 const preload = read('desktop/preload.cjs');
 const mainJs = read('desktop/main.mjs');
+const mcpHostJs = read('src/mcp-host-server.js');
+const launcherJs = read('desktop/lib/launcher.js');
 
 // ── 1. DOM id ───────────────────────────────────────────────────────────────
 const htmlIds = new Set([...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
@@ -94,7 +96,23 @@ check('CSP 未放行任意来源（不放行 * 通配）',
   && !/\*\s*;/.test(cspText),
   cspText || '(未取到 CSP)');
 
-// ── 7. hidden 属性必须真的能隐藏元素 ────────────────────────────────────────
+// ── 7. 后台进程不得自行拉起控制台窗口 ─────────────────────────────────────
+// windowsHide 只能隐藏当前子进程；`cmd /c start` 会创建另一个独立窗口，仍会
+// 闪出黑框。因此所有自动启动链都必须直接 spawn，并明确 windowsHide:true。
+const backgroundSources = [
+  ['MCP 主机', mcpHostJs],
+  ['桌面主进程', mainJs],
+  ['桌面启动器', launcherJs]
+];
+for (const [name, src] of backgroundSources) {
+  check(`${name} 未使用 cmd /c start 拉起后台进程`,
+    !/spawn\(\s*['"]cmd\.exe['"]\s*,\s*\[[^\]]*['"]\/c['"][^\]]*['"]start['"]/s.test(src));
+}
+check('SnowLuma 后台启动明确隐藏窗口',
+  /spawn\(\s*['"]cmd\.exe['"][\s\S]{0,500}?windowsHide\s*:\s*true/.test(mcpHostJs)
+  && /stdio\s*:\s*['"]ignore['"]/.test(mcpHostJs));
+
+// ── 8. hidden 属性必须真的能隐藏元素 ────────────────────────────────────────
 // 作者样式表里的 `display:` 与浏览器默认的 [hidden]{display:none} 同优先级，
 // 会覆盖 hidden 属性 —— 实测导致「进度条在操作成功后不消失」。
 // 因此必须有 [hidden]{display:none!important} 这条护栏。

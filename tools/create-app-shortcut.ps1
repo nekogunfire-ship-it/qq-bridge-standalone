@@ -6,11 +6,9 @@
 #   跳过它们就会重现「窗口一闪即退」—— 实测直接跑 electron.exe 退出码 -2147483645，
 #   且 state\desktop.log **没有任何新行**（= Electron 在加载应用代码前就已退出）。
 #
-# 关键二：用 `WindowStyle = 7`（最小化）避免控制台闪出，而不是绕一层 VBS。
-#   曾尝试 VBS + WScript.Shell.Run(..., 0, False) 隐藏窗口，但 VBS 需 UTF-16 LE + BOM，
-#   且在该环境下 cscript 报错无输出、难以可靠诊断（已放弃该路线并删除相关文件）。
-#   现在的做法：目标 node.exe、参数 start.mjs、窗口最小化 —— 启动链路完整，
-#   控制台只是收进任务栏不抢焦点，而且这条路径**可被自动化测试验证**。
+# 关键二：快捷方式指向 Windows Script Host，再由纯 ASCII 的 start-hidden.vbs
+#   以窗口样式 0 运行 node + start.mjs。仅设置 WindowStyle=7 只是最小化，仍会
+#   留下控制台任务栏按钮；WScript 路径不会创建控制台。
 #
 # 可重复运行：已存在则覆盖。
 param(
@@ -31,27 +29,28 @@ if ($Remove) {
 
 $appDir = Join-Path $Root 'desktop'
 $startScript = Join-Path $appDir 'start.mjs'
+$hiddenScript = Join-Path $appDir 'start-hidden.vbs'
 $electron = Join-Path $appDir 'node_modules\electron\dist\electron.exe'
 
-$node = @('D:\DSH\node\node.exe') | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $node) { $node = 'node.exe' }
+$node = (Get-Command node.exe -ErrorAction Stop).Source
 
 if (-not (Test-Path $startScript)) { Write-Error "找不到启动脚本：$startScript" }
+if (-not (Test-Path $hiddenScript)) { Write-Error "找不到无窗口启动器：$hiddenScript" }
 if (-not (Test-Path $electron)) {
   Write-Error "找不到 Electron：$electron`n请先在 desktop 目录执行 npm install（约 150MB，只需一次）。"
 }
 
 $iconCandidates = @(
-  (Join-Path $Root 'assets\dsh-0.1.13.ico'),
-  'D:\DSH\assets\dsh.ico',
-  'D:\DSH\assets\icon.ico'
+  (Join-Path $Root 'assets\dsh.ico'),
+  (Join-Path $Root 'assets\app-icon.png')
 )
 $iconPath = $iconCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 $shell = New-Object -ComObject WScript.Shell
 $lnk = $shell.CreateShortcut($lnkPath)
-$lnk.TargetPath = $node
-$lnk.Arguments = "`"$startScript`""
+$wscriptExe = Join-Path $env:SystemRoot 'System32\wscript.exe'
+$lnk.TargetPath = $wscriptExe
+$lnk.Arguments = "`"$hiddenScript`" `"$node`" `"$startScript`" `"$Root`""
 $lnk.WorkingDirectory = $appDir
 $lnk.Description = 'QQ 桥接控制台：一键启停 QQ 机器人服务、自动检查、内嵌网页控制台'
 $lnk.WindowStyle = 7
@@ -77,10 +76,10 @@ $runAsAdmin = [bool]([System.IO.File]::ReadAllBytes($lnkPath)[0x15] -band 0x20)
 
 Write-Host "已创建桌面快捷方式："
 Write-Host "  位置    : $lnkPath"
-Write-Host "  目标    : $node"
-Write-Host "  参数    : `"$startScript`"   （净化环境变量 -> 清理缓存 -> 指定 userData -> 启动 Electron）"
+Write-Host "  目标    : wscript.exe（隐藏）"
+Write-Host "  参数    : $node -> `"$startScript`"（净化环境变量 -> 清理缓存 -> 指定 userData -> 启动 Electron）"
 Write-Host "  工作目录: $appDir"
-Write-Host "  窗口样式: 最小化（7）"
+Write-Host "  窗口样式: 隐藏（不创建控制台窗口）"
 Write-Host "  管理员  : $(if ($runAsAdmin) { '是（RunAsAdmin 标志已设置，双击会弹 UAC）' } else { '否 —— 设置失败！' })"
 if ($iconPath) { Write-Host "  图标    : $iconPath" } else { Write-Host "  图标    : (未找到 .ico，使用默认)" }
 Write-Host ''

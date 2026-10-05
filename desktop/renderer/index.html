@@ -17,6 +17,7 @@
   <header class="titlebar">
     <div class="brand">
       <span class="logo" aria-hidden="true"></span>
+      <span class="brand-character" aria-hidden="true"><img src="../../assets/whale-maid-mascot.png" alt="" /></span>
       <div class="brand-text">
         <strong>QQ 桥接控制台</strong>
         <span id="appMeta" class="muted">正在读取版本…</span>
@@ -143,6 +144,7 @@
     <section class="panel panel-grow">
       <div class="panel-head">
         <h2>会话</h2>
+        <span class="character-tag"><img src="../../assets/whale-maid-mascot.png" alt="" />小鲸鱼值班中</span>
         <span id="monStatus" class="muted small"></span>
         <span class="grow"></span>
         <button id="btnOpenConsoleWindow" class="btn btn-small btn-primary" title="打开网页控制台：聊天 / 出图 / 角色 / 黑话 / 记忆等全部功能">打开控制台窗口</button>
@@ -189,6 +191,7 @@
         <h2>图片生成工作台</h2>
         <p class="muted">填写提示词并调用本机 ComfyUI。图片只保存在本机，不会自动发送到 QQ。</p>
       </div>
+      <img class="section-mascot" src="../../assets/whale-maid-mascot.png" alt="小鲸鱼女仆助手" />
       <span id="generateBadge" class="setup-badge" data-state="off">正在检查…</span>
     </section>
 
@@ -229,6 +232,7 @@
         <h2>环境与模型安装中心</h2>
         <p class="muted">首次安装时可以跳过，之后随时在这里选择 DSH、ComfyUI 和图片模型。未点击的组件不会下载。</p>
       </div>
+      <img class="section-mascot" src="../../assets/whale-maid-mascot.png" alt="小鲸鱼女仆助手" />
       <span id="comfySetupBadge" class="setup-badge" data-state="off">正在检查…</span>
     </section>
 
@@ -461,7 +465,7 @@
       </section>
 
       <section class="panel">
-        <div class="panel-head"><h2>关于</h2></div>
+        <div class="panel-head"><h2>关于</h2><span class="character-tag"><img src="../../assets/whale-maid-mascot.png" alt="" />小鲸鱼助手</span></div>
         <p class="muted small" id="aboutText">
           「总览」看服务是否正常；「监测」看 QQ 里正在发生什么；聊天 / 出图 / 角色 / 黑话 / 记忆等
           完整功能在网页控制台里（「监测」页可一键打开）。
@@ -471,6 +475,10 @@
   </main>
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
+  <div id="mascotFeedback" class="mascot-feedback" data-kind="info" hidden aria-live="polite">
+    <img src="../../assets/whale-maid-mascot.png" alt="小鲸鱼女仆助手" />
+    <span id="mascotFeedbackText">收到</span>
+  </div>
   <!-- pure.js 先加载：它是无 DOM 依赖的纯函数（数据 → 人话的翻译），Node 测试也直接 require 它 -->
   <script src="pure.js"></script>
   <script src="app.js"></script>

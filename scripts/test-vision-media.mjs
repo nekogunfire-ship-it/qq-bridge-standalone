@@ -17,7 +17,8 @@ function readJson(file) {
   return JSON.parse(text);
 }
 
-const config = readJson(path.join(ROOT, 'config.json'));
+const live = process.argv.includes('--live');
+const config = readJson(path.join(ROOT, live ? 'config.json' : 'config.example.json'));
 const bridgeSource = fs.readFileSync(path.join(ROOT, 'src', 'bridge.js'), 'utf8');
 let passed = 0;
 let failed = 0;
@@ -55,7 +56,7 @@ try {
 // 3. 桥接端点（可选）
 const consoleTokenFile = path.join(ROOT, 'state', 'console-token');
 const socialV2File = path.join(ROOT, 'state', 'social-v2.json');
-if (fs.existsSync(consoleTokenFile) && fs.existsSync(socialV2File)) {
+if (live && fs.existsSync(consoleTokenFile) && fs.existsSync(socialV2File)) {
   try {
     const consoleToken = fs.readFileSync(consoleTokenFile, 'utf8').trim();
     const social = JSON.parse(fs.readFileSync(socialV2File, 'utf8'));
@@ -77,7 +78,7 @@ if (fs.existsSync(consoleTokenFile) && fs.existsSync(socialV2File)) {
     console.log(`⚠️ 桥接端点检查跳过：${error?.message ?? error}`);
   }
 } else {
-  console.log('⚠️ 跳过桥接端点检查：缺少 state/console-token 或 state/social-v2.json');
+  console.log('跳过在线探测：仅 --live 模式使用本机配置及会话，离线质量门禁不访问运行中的桥接。');
 }
 
 console.log(`\n结果：${passed} 通过，${failed} 失败`);

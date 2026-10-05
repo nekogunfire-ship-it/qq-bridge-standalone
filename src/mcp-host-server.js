@@ -157,7 +157,7 @@ server.tool(
 if (getHostConfig().allowProcessControl) {
   server.tool(
     'start_snowluma',
-    '启动 SnowLuma（launcher.bat，独立窗口）并等待 OneBot 网关就绪，最长 90 秒。已在运行时直接返回当前状态。',
+    '在后台无窗口启动 SnowLuma（launcher.bat）并等待 OneBot 网关就绪，最长 90 秒。已在运行时直接返回当前状态。',
     {},
     async () => {
       const hc = getHostConfig();
@@ -175,7 +175,15 @@ if (getHostConfig().allowProcessControl) {
         return { content: [{ type: 'text', text: JSON.stringify({ started: false, alreadyOnline: true, info: before }) }] };
       }
       let spawnError = null;
-      const child = spawn('cmd.exe', ['/c', 'start', '', `"${hc.launcher}"`], { detached: true, stdio: 'ignore', windowsHide: true });
+      // 不使用 `cmd /c start`：start 会再创建一个独立控制台窗口，即使当前
+      // child_process 设置了 windowsHide 也可能闪出黑框。直接让隐藏的 cmd
+      // 调用批处理文件，进程仍可 detached/unref 在后台独立运行。
+      const child = spawn('cmd.exe', ['/d', '/s', '/c', 'call', hc.launcher], {
+        cwd: hc.homeDir || path.dirname(hc.launcher),
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      });
       child.on('error', (err) => { spawnError = err; });
       child.unref();
       let info = null;

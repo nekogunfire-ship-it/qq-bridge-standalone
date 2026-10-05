@@ -8,6 +8,7 @@
 //
 // 服务本身仍然跑在桥接里（127.0.0.1:3100），本窗口只是前端 + 生命周期管理。
 import { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage } from 'electron';
+import { spawnNodeWorker } from './lib/node-worker.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -78,7 +79,7 @@ function runDshCompatibilitySetup() {
   if (!fs.existsSync(script)) return Promise.resolve({ ok: false, error: '找不到 scripts/setup-dsh.mjs' });
   dshSetupRunning = true;
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [script, 'web'], { cwd: ROOT, windowsHide: true });
+    const child = spawnNodeWorker([script, 'web'], { cwd: ROOT });
     let output = '';
     const collect = (chunk) => { output = `${output}${chunk}`.slice(-12000); };
     child.stdout.on('data', collect);
@@ -317,6 +318,7 @@ async function watchdogTick() {
 }
 
 function startWatchdog() {
+  if (process.env.QB_UI_PROBE === '1') return;
   if (watchdogTimer) clearInterval(watchdogTimer);
   const settings = loadSettings();
   // 探测间隔固定 30 秒（比界面上的自动检查更勤），是否启用由设置控制
@@ -763,7 +765,7 @@ function registerIpc() {
     const core = path.join(ROOT, 'tools', 'uninstall-core.mjs');
     if (!fs.existsSync(core)) return { ok: false, error: '找不到卸载核心 tools/uninstall-core.mjs' };
     return new Promise((resolve) => {
-      const child = spawn(process.execPath, [core, '--json', '--keep-data'], {
+      const child = spawnNodeWorker([core, '--json', '--keep-data'], {
         cwd: ROOT,
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true
@@ -793,7 +795,7 @@ function registerIpc() {
 
     const planResult = await new Promise((resolve) => {
       const core = path.join(ROOT, 'tools', 'uninstall-core.mjs');
-      const child = spawn(process.execPath, [core, '--json', '--keep-data'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+      const child = spawnNodeWorker([core, '--json', '--keep-data'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] });
       let out = '';
       child.stdout.on('data', (d) => { out += d.toString('utf8'); });
       child.on('close', () => { try { resolve(JSON.parse(out)); } catch { resolve(null); } });
@@ -875,7 +877,7 @@ function registerIpc() {
     const tool = path.join(ROOT, 'tools', 'config-portability.mjs');
     if (!fs.existsSync(tool)) return Promise.resolve({ ok: false, error: '找不到 tools/config-portability.mjs' });
     return new Promise((resolve) => {
-      const child = spawn(process.execPath, [tool, ...args], {
+      const child = spawnNodeWorker([tool, ...args], {
         cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
       });
       let out = '';

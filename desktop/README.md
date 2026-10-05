@@ -51,15 +51,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\create-app-shortcut.ps
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\create-app-shortcut.ps1 -Remove
 ```
 
-**它指向 `node.exe` + `start.mjs`，窗口样式设为最小化（7）**。这两个选择都是踩坑后的结论：
+**v0.2.10 的快捷方式通过 `wscript.exe` → `start-hidden.vbs` → `node.exe` → `start.mjs` 启动**。Node 控制台隐藏，Electron 主界面正常显示。
 
 - ⚠️ **不能指向 `electron.exe`** —— 那会绕过 `start.mjs`，而它负责清理缓存与指定干净
   userData。实测直接跑 electron.exe：退出码 `-2147483645`，且 `state\desktop.log` **零新增行**
   （= Electron 在加载应用代码前就退出，表现为"点了图标打不开"）。
-- 也不绕 VBS 隐藏控制台：VBS 需要 UTF-16 LE + BOM，该环境下 `cscript` 报错无输出、难以诊断
-  （已放弃并删除相关文件）。用「node + 最小化窗口」既完整又**可被自动化测试验证**。
+- VBS 文件仅含 ASCII，安装目录和 Node 路径通过参数传入，不在脚本中写死个人路径。
 
-图标取 `D:\DSH\assets\dsh.ico`。
+图标来自项目自身的 assets 目录，Node 从系统 PATH 查找。
 
 ## 界面分区
 

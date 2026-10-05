@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+__pycache__/
 .npm-cache/
 
 # Runtime state and local config (never publish)

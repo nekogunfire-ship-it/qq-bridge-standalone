@@ -50,7 +50,9 @@
 
 把 QQ 消息接入 DSH agent：QQ 好友/群发来的消息会变成 DSH 会话里的用户消息，agent 的回复（含提问、工具审批）会发回 QQ。
 
-> ⚠️ **当前版本 `v0.2.8`，兼容 DSH 0.1.5-rc.1，并支持完全脱离 DSH 的 Direct Runtime**。本版将应用内卸载改为纯 PowerShell 后台链路，消除批处理黑框与中途终止问题；再次安装会更新程序文件并自动沿用保留的数据。安装程序可选安装 DSH 兼容组件、ComfyUI 环境和 SDXL 图片模型。
+> **当前版本 `v0.2.10`，兼容 DSH 0.1.5-rc.1，并支持完全脱离 DSH 的 Direct Runtime**。本版加入 30 FPS 人物轮廓流动背景、透明面板与完整宽度总览；优化隐藏窗口和非当前页面的刷新开销，修复 Electron 后台脚本启动模式、状态文本转义及安装失败退出码。再次安装会更新程序文件并沿用保留的数据，DSH 兼容组件、ComfyUI 环境和 SDXL 图片模型仍可按需选择。
+>
+> [下载 v0.2.10 安装包](https://github.com/nekogunfire-ship-it/qq-bridge-standalone/releases/tag/v0.2.10) · [本次自检与后续计划](docs/RELEASE_v0.2.10.md)
 >
 > 默认分支 `main` **就是**本版本，`git clone` 直接拿到，无需切换分支。
 

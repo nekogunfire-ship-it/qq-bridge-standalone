@@ -1,4 +1,7 @@
 # .packageignore —— 打包时额外排除的路径（tools/package-dist.mjs 读这个文件）
+assets/whale-maid-neon-flow.webp
+tools/generate-neon-flow.py
+tools/generate-path-flow.py
 #
 # 一行一条，相对仓库根；支持 # 注释。写目录名即排除整棵子树。
 # 用途：把"不想外发、又不适合脱敏"的东西挡在发布包外面，而不用改打包脚本。
