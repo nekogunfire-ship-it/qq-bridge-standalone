@@ -99,7 +99,7 @@
     "quality:ci": "npm run test:audit && npm run test:desktop && npm run test:runtime-direct && npm run test:mcp-tools && npm run test:v2-guardrails && npm run test-text-safety && npm run test-vision && npm run test-comfy-manager && npm run test:config-portability && npm run test:package && npm run docs:audit && npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.1",
+    "@deepseek-ai/schemastery": "^3.18.4",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@snowluma/mcp": "^1.14.10",
     "@snowluma/sdk": "^1.14.0",
