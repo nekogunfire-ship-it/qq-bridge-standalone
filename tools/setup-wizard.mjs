@@ -16,6 +16,7 @@
 //   node tools/setup-wizard.mjs                  # 交互式问答
 //   node tools/setup-wizard.mjs --root <路径>    # 指定目标目录（沙箱测试用）
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import net from 'node:net';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -68,6 +69,34 @@ async function httpGet(url, timeoutMs = 2500, headers = {}) {
   } catch (e) {
     return { ok: false, error: String(e?.message ?? e) };
   }
+}
+
+async function httpPost(url, body = {}, timeoutMs = 2500, headers = {}) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(url, {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body)
+    });
+    clearTimeout(t);
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, text };
+  } catch (e) {
+    return { ok: false, error: String(e?.message ?? e) };
+  }
+}
+
+async function detectLoginQQ(httpUrl, accessToken = '') {
+  const headers = accessToken ? { authorization: `Bearer ${accessToken}` } : {};
+  const r = await httpPost(`${String(httpUrl).replace(/\/$/, '')}/get_login_info`, {}, 1800, headers);
+  if (!r.ok) return '';
+  try {
+    const payload = JSON.parse(r.text);
+    const value = payload?.data?.user_id ?? payload?.user_id;
+    return /^\d{5,}$/.test(String(value ?? '')) ? String(value) : '';
+  } catch { return ''; }
 }
 
 function readJsonSafe(file) {
@@ -286,6 +315,7 @@ async function main() {
   const argv = process.argv.slice(2);
   const checkOnly = argv.includes('--check');
   const nonInteractive = argv.includes('--yes');
+  const autoConfigure = argv.includes('--auto');
   // --yes 模式下用参数把答案一次给全（脚本化安装用）；缺省则探测/留空
   const argValue = (name) => {
     const i = argv.indexOf(name);
@@ -340,10 +370,15 @@ async function main() {
   const answers = {};
 
   // 命令行给了就用命令行（--yes 脚本化场景），否则交互问
-  const cliOwner = argValue('--owner-qq');
+  const snowToken = argValue('--snowluma-token') || process.env.SNOWLUMA_ACCESS_TOKEN || '';
+  const detectedOwner = autoConfigure
+    ? await detectLoginQQ(d.snowluma?.httpUrl ?? 'http://127.0.0.1:3000', snowToken)
+    : '';
+  const cliOwner = argValue('--owner-qq') || process.env.QQ_BRIDGE_OWNER_QQ || detectedOwner;
   const cliGroups = argValue('--groups');
 
   answers.ownerQQ = cliOwner || await prompt.ask('你的 QQ 号（管理员，机器人只认这个人的指令）', '');
+  if (detectedOwner && answers.ownerQQ === detectedOwner) console.log(`  ✅ 已从在线 QQ 网关识别管理员 QQ：${detectedOwner}`);
   if (!/^\d{5,}$/.test(answers.ownerQQ)) {
     console.log('');
     console.log('⚠️  没有填写有效的 QQ 号 —— 生成配置后机器人将不认任何人，你随时可以手改 config.json 的 ownerQQ。');
@@ -382,7 +417,10 @@ async function main() {
     answers.directModel = cliDirectModel || await prompt.ask('模型名', 'deepseek-chat');
     // ⚠️ 密钥刻意**不要求写在这里**，也不经过任何第三方：
     //    既支持直接输入（本地自用），也支持留空后自己填 config.json。
-    answers.directApiKey = await prompt.ask('API key（可留空，稍后自己填进 config.json）', '');
+    answers.directApiKey = argValue('--direct-api-key')
+      || process.env.DEEPSEEK_API_KEY
+      || process.env.OPENAI_API_KEY
+      || await prompt.ask('API key（可留空，稍后自己填进 config.json）', '');
     console.log('');
     console.log('  ⚠️ direct 目前只支持 chat 模式；二代仿真（reserved2）需要工具循环，尚未支持。');
   } else if (d.dsh) {
@@ -407,6 +445,8 @@ async function main() {
   const template = readJsonSafe(EXAMPLE);
   if (!template) { console.error('❌ config.example.json 解析失败'); return 1; }
   const cfg = buildConfig(template, answers);
+  if (snowToken) cfg.snowluma.accessToken = snowToken;
+  if (!cfg.consoleToken) cfg.consoleToken = crypto.randomBytes(24).toString('base64url');
   const pruned = prunePlaceholders(cfg);
   if (pruned.length) {
     console.log('');
@@ -448,6 +488,22 @@ async function main() {
   }
   console.log(`  ComfyUI       : ${cfg.comfy.host}`);
   console.log(`  出图模型      : ${Object.keys(cfg.comfy.models ?? {}).join(', ')}`);
+
+  // 安装器和桌面端读取这个不含密钥的状态文件，只显示还需要用户完成的事项。
+  // 不把 API key / DSH token / consoleToken 写进去，避免诊断信息造成二次泄露。
+  const remaining = [];
+  if (!cfg.ownerQQ) remaining.push('ownerQQ');
+  if ((cfg.runtime?.type ?? 'dsh') === 'direct' && !cfg.runtime?.apiKey) remaining.push('runtime.apiKey');
+  if ((cfg.runtime?.type ?? 'dsh') === 'dsh' && !cfg.dsh?.authToken && !d.dsh) remaining.push('dsh');
+  if (!d.snowluma?.online) remaining.push('snowluma');
+  fs.mkdirSync(path.join(TARGET, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(TARGET, 'state', 'post-install.json'), JSON.stringify({
+    configuredAt: new Date().toISOString(),
+    runtime: cfg.runtime?.type ?? 'dsh',
+    autoConfigured: autoConfigure,
+    ready: remaining.length === 0,
+    remaining
+  }, null, 2) + '\n', 'utf8');
 
   console.log('');
   console.log('=== 下一步 ===');

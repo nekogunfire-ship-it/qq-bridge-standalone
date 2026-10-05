@@ -201,7 +201,7 @@ function buildPlan(p) {
   } else {
     push('不下载图片模型', '以后可在桌面应用「出图」页阅读许可证并下载', 'keep');
   }
-  push('生成配置', '运行配置向导：npm run setup（体检 + 自动探测 + 询问运行时 + 生成 config.json）', 'action');
+  push('自动完成首次配置', '探测 QQ/DSH/ComfyUI，安全生成 config.json；已有配置与数据原样保留', 'action');
 
   if (has('--with-shortcuts')) {
     for (const s of shortcutPlan(p)) push(s.title, s.detail, s.kind);
@@ -347,7 +347,22 @@ function execute(p, log = console.log) {
     rec('安装桌面运行环境', true, '已按 --skip-npm 跳过');
   }
 
-  // 4) 可选安装 ComfyUI 与图片模型。专用 CLI 复用桌面应用同一套下载、路径和配置逻辑。
+  // 4) 自动完成首次配置。已有 config.json 时向导会直接保留，绝不静默覆盖。
+  // QQ 网关在线时可自动识别登录 QQ；API key 仅从用户显式提供的环境变量读取，且不会打印。
+  if (!has('--skip-setup')) {
+    const wizard = path.join(p.target, 'tools', 'setup-wizard.mjs');
+    const args = [wizard, '--root', p.target, '--yes', '--auto', '--runtime', has('--no-dsh') ? 'direct' : 'dsh'];
+    const setupResult = spawnSync(process.execPath, args, {
+      cwd: p.target, windowsHide: true, stdio: ['ignore', 'inherit', 'inherit'],
+      env: process.env
+    });
+    rec('自动首次配置', setupResult.status === 0,
+      setupResult.status === 0 ? '已自动探测并生成配置（已有配置则保留）' : `配置向导失败（退出码 ${setupResult.status}）`);
+  } else {
+    rec('自动首次配置', true, '已按 --skip-setup 跳过');
+  }
+
+  // 5) 可选安装 ComfyUI 与图片模型。专用 CLI 复用桌面应用同一套下载、路径和配置逻辑。
   if (has('--with-comfy') || has('--with-image-model')) {
     const tool = path.join(p.target, 'tools', 'install-comfy-cli.mjs');
     const args = [tool];
@@ -504,10 +519,9 @@ function main() {
   console.log('');
   console.log(`安装完成：${okCount}/${results.length} 步成功。`);
   console.log('');
-  console.log('下一步：');
-  console.log(`  1. 生成配置：cd /d "${p.target}" && npm run setup`);
-  console.log(`  2. 启动服务：powershell -ExecutionPolicy Bypass -File "${path.join(p.target, 'tools', 'qq-bridge-launcher.ps1')}" -Action startAll`);
-  console.log(`  3. 桌面窗口：双击桌面上的「QQ 桥接控制台」`);
+  console.log('首次配置已自动处理；若仍有缺失项，桌面应用总览会继续引导。');
+  console.log(`  启动服务：powershell -ExecutionPolicy Bypass -File "${path.join(p.target, 'tools', 'qq-bridge-launcher.ps1')}" -Action startAll`);
+  console.log(`  桌面窗口：双击桌面上的「QQ 桥接控制台」`);
   return 0;
 }
 

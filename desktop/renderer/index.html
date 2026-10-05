@@ -53,13 +53,20 @@
   <!-- ═══════════════ ① 总览：现在好不好 ═══════════════ -->
   <main id="viewOverview" class="view">
     <section id="guidePanel" class="panel guide-panel" data-state="checking">
-      <div class="guide-mark" aria-hidden="true">→</div>
-      <div class="guide-copy">
-        <span class="guide-kicker">建议下一步</span>
-        <h2 id="guideTitle">正在检查运行状态…</h2>
-        <p id="guideText">检查完成后，这里会告诉你最值得先处理的一件事。</p>
+      <div class="guide-content">
+        <div class="guide-mark" aria-hidden="true">→</div>
+        <div class="guide-copy">
+          <span class="guide-kicker">智能配置助手 · 建议下一步</span>
+          <h2 id="guideTitle">正在检查运行状态…</h2>
+          <p id="guideText">检查完成后，这里会告诉你最值得先处理的一件事。</p>
+          <span class="mascot-note">小鲸鱼女仆助手 · 你的专属配置向导</span>
+        </div>
+        <button id="guideAction" class="btn btn-primary" hidden>处理</button>
       </div>
-      <button id="guideAction" class="btn btn-primary" hidden>处理</button>
+      <figure class="mascot-wrap" aria-label="小鲸鱼女仆助手">
+        <div class="mascot-halo" aria-hidden="true"></div>
+        <img class="mascot" src="../../assets/whale-maid-mascot.png" alt="根据用户人设图制作的小鲸鱼女仆助手" draggable="false" />
+      </figure>
     </section>
 
     <section class="panel onboarding-panel" aria-labelledby="onboardingTitle">

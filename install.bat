@@ -161,9 +161,9 @@ echo ============================================================
 if "%RC%"=="0" (
   echo   Install finished.
   echo.
-  echo   Next steps:
-  echo     1. Configure it:  cd /d "%TARGET%" ^&^& npm run setup
-  echo     2. Start it:      run "tools\qq-bridge-launcher.ps1 -Action startAll"
+  echo   Initial configuration was completed automatically.
+  echo   Any missing account/API item will be shown in the app overview.
+  echo     Start it:         run "tools\qq-bridge-launcher.ps1 -Action startAll"
   echo                        from the install folder, or use the shortcut
   echo.
   echo   Other external component ^(bring your own^):

@@ -83,16 +83,30 @@ check('可选组件仍保持计划模式，不启动大文件下载', !fs.exists
 const foreign = path.join(SANDBOX, 'foreign');
 fs.mkdirSync(foreign, { recursive: true });
 fs.writeFileSync(path.join(foreign, 'my-important-file.txt'), 'do not touch', 'utf8');
-const foreignRun = runTool(['--target', foreign, '--apply', '--skip-npm']);
+const foreignRun = runTool(['--target', foreign, '--apply', '--skip-npm', '--skip-setup']);
 check('拒绝安装到无关的非空目录', foreignRun.status === 2, `退出码 ${foreignRun.status}`);
 check('拒绝时未写入任何东西', (() => {
   const entries = fs.readdirSync(foreign);
   return entries.length === 1 && entries[0] === 'my-important-file.txt';
 })(), fs.readdirSync(foreign).join(', '));
 
+// ── 2b. 安装后自动配置：全程在独立目标中，不触碰真实配置 ────────────────
+const autoTarget = path.join(SANDBOX, 'auto-config-app');
+const autoInstall = runTool([
+  '--target', autoTarget, '--apply', '--skip-npm', '--no-dsh'
+]);
+let autoConfig = null;
+let autoState = null;
+try { autoConfig = JSON.parse(fs.readFileSync(path.join(autoTarget, 'config.json'), 'utf8')); } catch {}
+try { autoState = JSON.parse(fs.readFileSync(path.join(autoTarget, 'state', 'post-install.json'), 'utf8')); } catch {}
+check('安装后自动生成首次配置', autoInstall.status === 0 && Boolean(autoConfig));
+check('不安装 DSH 时自动选择 direct 运行时', autoConfig?.runtime?.type === 'direct');
+check('自动生成不含密钥的待办状态', autoState?.autoConfigured === true && Array.isArray(autoState?.remaining));
+check('自动配置过程有明确结果', /自动首次配置/.test(autoInstall.out));
+
 // ── 3. 真安装（依赖与看门狗跳过；全局路径全部重定向）───────────────────────
 const installRun = runTool([
-  '--target', TARGET, '--apply', '--skip-npm',
+  '--target', TARGET, '--apply', '--skip-npm', '--skip-setup',
   '--with-shortcuts', '--with-uninstall-entry', '--reg-key', TEST_REG_KEY
 ]);
 check('安装返回成功', installRun.status === 0, installRun.out.trim().split('\n').slice(-1)[0]);
@@ -144,7 +158,7 @@ fs.mkdirSync(path.join(TARGET, 'state'), { recursive: true });
 fs.writeFileSync(path.join(TARGET, 'state', 'bridge.log'), 'my history', 'utf8');
 fs.writeFileSync(path.join(TARGET, 'README.md'), 'stale program file', 'utf8');
 const reinstall = runTool([
-  '--target', TARGET, '--apply', '--skip-npm',
+  '--target', TARGET, '--apply', '--skip-npm', '--skip-setup',
   '--with-shortcuts', '--with-uninstall-entry', '--reg-key', TEST_REG_KEY
 ]);
 check('覆盖安装成功（识别为已有安装而非无关目录）', reinstall.status === 0,
@@ -166,7 +180,7 @@ const other = path.join(SANDBOX, 'app2');
 fs.mkdirSync(other, { recursive: true });
 runDecoded('reg.exe', ['add', TEST_REG_PATH, '/v', 'InstallLocation', '/t', 'REG_SZ', '/d', other, '/f']);
 const hijack = runTool([
-  '--target', TARGET, '--apply', '--skip-npm', '--with-uninstall-entry', '--reg-key', TEST_REG_KEY
+  '--target', TARGET, '--apply', '--skip-npm', '--skip-setup', '--with-uninstall-entry', '--reg-key', TEST_REG_KEY
 ]);
 const q2 = runDecoded('reg.exe', ['query', TEST_REG_PATH, '/v', 'InstallLocation']);
 const m2 = q2.out.split(/\r?\n/).map((l) => l.match(/InstallLocation\s+REG_\w+\s+(.*?)\s*$/)).find(Boolean);

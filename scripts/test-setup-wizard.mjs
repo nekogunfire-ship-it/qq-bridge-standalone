@@ -27,6 +27,9 @@ const check = (name, ok, detail = '') => {
 
 const run = (args) => spawnSync(process.execPath, [TOOL, ...args], { cwd: REPO, encoding: 'utf8', windowsHide: true });
 const outOf = (r) => (r.stdout ?? '') + (r.stderr ?? '');
+const readJson = (file) => {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+};
 
 // ── 沙箱：一份真实的模板 + 一个假 node_modules ──────────────────────────────
 fs.rmSync(SANDBOX, { recursive: true, force: true });
@@ -103,6 +106,30 @@ check('角色 LoRA 的占位条目也被剪掉', (() => {
   return keys.length === 0;
 })());
 check('剪枝过程有向用户报告', /已剪掉模板里的占位预设/.test(outOf(gen)), '（输出里有剪枝说明）');
+
+// ── 6. 安装器自动模式：无需交互，读取显式环境变量但不泄露密钥 ──────────────
+{
+  const sbAuto = path.join(os.tmpdir(), `qb-wizard-auto-${process.pid}`);
+  fs.rmSync(sbAuto, { recursive: true, force: true });
+  fs.mkdirSync(path.join(sbAuto, 'node_modules'), { recursive: true });
+  fs.copyFileSync(path.join(REPO, 'config.example.json'), path.join(sbAuto, 'config.example.json'));
+  const secret = 'sk-test-secret-value-never-print';
+  const auto = spawnSync(process.execPath, [
+    TOOL, '--root', sbAuto, '--yes', '--auto', '--runtime', 'direct'
+  ], {
+    cwd: REPO, encoding: 'utf8', windowsHide: true,
+    env: { ...process.env, QQ_BRIDGE_OWNER_QQ: '987654321', DEEPSEEK_API_KEY: secret }
+  });
+  const autoOut = (auto.stdout ?? '') + (auto.stderr ?? '');
+  const autoCfg = readJson(path.join(sbAuto, 'config.json'));
+  const autoState = readJson(path.join(sbAuto, 'state', 'post-install.json'));
+  check('⑥ --auto 无交互生成配置', auto.status === 0 && Boolean(autoCfg));
+  check('⑥ 自动读取管理员 QQ 环境变量', autoCfg?.ownerQQ === '987654321');
+  check('⑥ 自动读取 API key 但不打印明文', autoCfg?.runtime?.apiKey === secret && !autoOut.includes(secret));
+  check('⑥ 自动生成控制台令牌', typeof autoCfg?.consoleToken === 'string' && autoCfg.consoleToken.length >= 24);
+  check('⑥ 生成不含密钥的安装后状态', autoState?.autoConfigured === true && !JSON.stringify(autoState).includes(secret));
+  fs.rmSync(sbAuto, { recursive: true, force: true });
+}
 
 // ── 7. 运行时选择：direct（用户要求"安装时选是否用 DSH 环境"的落点）────────────
 // 注意：本机 DSH 在跑，所以向导**会**推断出建议 dsh；要测 direct 必须显式指定。
